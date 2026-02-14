@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RUAE Practice</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <a class="home-link" href="/">Home</a>
+        <span id="sessionEmail" class="session-email"></span>
+        <button id="logoutBtn" type="button">Logout</button>
+      </header>
+
+      <div class="controls">
+        <label>
+          <span>Year</span>
+          <select id="yearSelect" aria-label="Select a year"></select>
+        </label>
+        <label>
+          <span>Paper</span>
+          <select id="paperSelect" aria-label="Select a paper"></select>
+        </label>
+        <label>
+          <span>View</span>
+          <select id="viewSelect" aria-label="Select view mode">
+            <option value="all">All questions</option>
+            <option value="single">One question</option>
+          </select>
+        </label>
+        <label id="questionSelectWrap" class="hidden">
+          <span>Question</span>
+          <select id="questionSelect" aria-label="Select question"></select>
+        </label>
+        <label>
+          <span>Mark scheme</span>
+          <select id="schemeView" aria-label="Select mark scheme view">
+            <option value="table">Table</option>
+            <option value="list">List</option>
+          </select>
+        </label>
+        <label>
+          <span>AI mode</span>
+          <select id="aiMode" aria-label="Select AI mode">
+            <option value="quote">Quote check</option>
+            <option value="mark">Mark answer</option>
+          </select>
+        </label>
+      </div>
+      <section id="questions"></section>
+    </main>
+
+    <script src="/runtime-config.js"></script>
+    <script src="/auth-client.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

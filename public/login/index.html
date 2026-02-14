@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RUAE Login</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: #0f1115;
+        color: #e7ebf3;
+      }
+      main {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 2.5rem 1rem 3rem;
+      }
+      h1,
+      h2 {
+        margin: 0 0 0.75rem;
+      }
+      p {
+        color: #bdc7d8;
+      }
+      .panel {
+        margin-top: 1.25rem;
+        padding: 1rem;
+        border: 1px solid #2a3240;
+        border-radius: 12px;
+        background: #161a22;
+      }
+      form {
+        display: grid;
+        gap: 0.75rem;
+      }
+      label {
+        display: grid;
+        gap: 0.35rem;
+      }
+      input {
+        height: 2.25rem;
+        border-radius: 8px;
+        border: 1px solid #3a465a;
+        background: #10141b;
+        color: #f2f5fb;
+        padding: 0 0.65rem;
+      }
+      button {
+        height: 2.25rem;
+        border: 0;
+        border-radius: 8px;
+        background: #2f81f7;
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .secondary {
+        background: #2a3240;
+      }
+      #status {
+        margin-top: 1rem;
+        min-height: 1.5rem;
+      }
+      #status.error {
+        color: #ff8d8d;
+      }
+      #status.ok {
+        color: #9be09d;
+      }
+      .muted {
+        color: #7b879c;
+        font-size: 0.9rem;
+      }
+      a {
+        color: #8fc8ff;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>RUAE Access</h1>
+      <p>Create an account or log in to access protected routes.</p>
+      <p class="muted">API base: <code id="apiBase"></code></p>
+
+      <div class="panel">
+        <h2>Create account</h2>
+        <form id="signupForm">
+          <label>
+            Email
+            <input id="signupEmail" type="email" autocomplete="email" required />
+          </label>
+          <label>
+            Password
+            <input id="signupPassword" type="password" minlength="12" autocomplete="new-password" required />
+          </label>
+          <button type="submit">Create account</button>
+        </form>
+      </div>
+
+      <div class="panel">
+        <h2>Login</h2>
+        <form id="loginForm">
+          <label>
+            Email
+            <input id="loginEmail" type="email" autocomplete="email" required />
+          </label>
+          <label>
+            Password
+            <input id="loginPassword" type="password" autocomplete="current-password" required />
+          </label>
+          <button type="submit">Login</button>
+        </form>
+      </div>
+
+      <div class="panel">
+        <button id="logoutBtn" class="secondary" type="button">Logout</button>
+        <p><a id="continueLink" href="/ruae/">Continue to RUAE</a></p>
+      </div>
+
+      <div id="status" role="status" aria-live="polite"></div>
+    </main>
+
+    <script src="/runtime-config.js"></script>
+    <script src="/auth-client.js"></script>
+    <script src="/login/login.js"></script>
+  </body>
+</html>

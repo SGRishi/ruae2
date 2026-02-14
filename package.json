@@ -1,0 +1,11 @@
+{
+  "name": "ruae2",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-frontend.mjs",
+    "lint": "node -e \"import('./worker.js')\" && node --check public/auth-client.js && node --check public/app.js && node --check public/login/login.js && node --check scripts/build-frontend.mjs",
+    "test": "node --test tests/**/*.test.mjs"
+  }
+}
