@@ -8,6 +8,10 @@ const rootDir = path.resolve(__dirname, '..');
 const publicDir = path.join(rootDir, 'public');
 const distDir = path.join(rootDir, 'dist');
 
+/**
+ * @param {string | undefined | null} value
+ * @returns {string}
+ */
 function normalizeBaseUrl(value) {
   const raw = String(value || '').trim();
   if (!raw) return '';

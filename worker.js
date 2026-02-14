@@ -158,17 +158,6 @@ function buildCsrfCookie(token, url, env) {
   });
 }
 
-function clearCsrfCookie(url, env) {
-  return serializeCookie(CSRF_COOKIE_NAME, '', {
-    path: '/',
-    sameSite: 'Lax',
-    secure: secureCookieForUrl(url, env),
-    httpOnly: false,
-    maxAge: 0,
-    priority: 'High',
-  });
-}
-
 function appendSetCookies(headers, cookies = []) {
   for (const cookie of cookies) {
     headers.append('Set-Cookie', cookie);

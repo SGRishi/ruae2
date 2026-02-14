@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
-const authClientSource = await readFile(new URL('../../public/auth-client.js', import.meta.url), 'utf8');
+const authClientSource = await readFile(
+  new URL('../../public/auth-client.js', import.meta.url),
+  'utf8'
+);
 
 function createJsonResponse(payload, status = 200) {
   return new Response(JSON.stringify(payload), {
