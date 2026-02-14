@@ -10,7 +10,7 @@ database_name = "ruae-members-db"
 database_id = "6f9e29c4-1a9f-4927-9e63-c70cb1a653e7"
 
 [[routes]]
-pattern = "api.rishisubjects.co.uk/*"
+pattern = "api.rishisubjects.co.uk"
 custom_domain = true
 
 [vars]

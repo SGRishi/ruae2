@@ -54,7 +54,8 @@ Deploy the project.
 ## 3) Configure Domains
 
 - Pages custom domain: `rishisubjects.co.uk`
-- Worker custom domain route: `api.rishisubjects.co.uk/*`
+- Worker custom domain route: `api.rishisubjects.co.uk`
+  - Custom domains must be hostname-only (no `/*` path suffix).
 
 `wrangler.toml` already includes route + workers.dev enabled.
 
