@@ -1,0 +1,31 @@
+name: Smoke Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Frontend site URL
+        required: false
+        default: https://rishisubjects.co.uk
+      api_base:
+        description: API base URL
+        required: false
+        default: https://api.rishisubjects.co.uk
+  schedule:
+    - cron: '17 5 * * *'
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      BASE_URL: ${{ inputs.base_url || 'https://rishisubjects.co.uk' }}
+      API_BASE: ${{ inputs.api_base || 'https://api.rishisubjects.co.uk' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Smoke test deployed app
+        run: bash scripts/smoke-deploy.sh "$BASE_URL" "$API_BASE"

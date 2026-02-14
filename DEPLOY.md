@@ -8,6 +8,8 @@
 npx wrangler login
 ```
 
+For non-interactive CI, set `CLOUDFLARE_API_TOKEN` with least-privilege scopes documented in `SECURITY.md`.
+
 2. Ensure D1 schema is applied:
 
 ```bash
@@ -51,6 +53,13 @@ Set build env var:
 
 Deploy the project.
 
+CLI alternative:
+
+```bash
+npm run build
+npx wrangler pages deploy dist --project-name rishisubjects
+```
+
 ## 3) Configure Domains
 
 - Pages custom domain: `rishisubjects.co.uk`
@@ -77,3 +86,13 @@ Configure Worker vars in Cloudflare dashboard or wrangler:
 5. `GET /api/auth/me` returns `authenticated: true`.
 6. `GET /api/protected/example` returns `200`.
 7. Logout clears session and protected endpoint returns `401`.
+
+Automated smoke test:
+
+```bash
+npm run smoke:deploy
+```
+
+GitHub Actions smoke workflow:
+
+- `.github/workflows/smoke-deploy.yml`
