@@ -249,7 +249,7 @@ function addCorsHeaders(request, env, headers) {
   headers.set('Access-Control-Allow-Origin', corsOrigin);
   headers.set('Access-Control-Allow-Credentials', 'true');
   headers.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  headers.set('Access-Control-Allow-Headers', 'Content-Type, X-CSRF-Token');
+  headers.set('Access-Control-Allow-Headers', 'Content-Type, X-CSRF-Token, X-Admin-Token, X-Admin-Key');
   headers.set('Vary', appendVary(headers.get('Vary'), 'Origin'));
 }
 
@@ -297,6 +297,10 @@ function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function normalizeUsername(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 function normalizeAdminReason(value) {
   const reason = String(value || '').trim();
   if (!reason) return 'Denied by administrator.';
@@ -305,6 +309,18 @@ function normalizeAdminReason(value) {
 
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || ''));
+}
+
+function isValidUsername(value) {
+  return /^[a-zA-Z]{2,40}$/.test(String(value || '').trim());
+}
+
+function isValidLoginIdentifier(value) {
+  return isValidUsername(value) || isValidEmail(value);
+}
+
+function resolveLoginIdentifier(payload = {}) {
+  return normalizeUsername(payload.username ?? payload.email);
 }
 
 function isStrongPassword(value) {
@@ -628,6 +644,28 @@ function createD1Store(db) {
       }));
     },
 
+    async listApprovedUsers(limit = ADMIN_REVIEW_LIMIT) {
+      const safeLimit = Math.max(1, Math.min(1000, Number(limit) || ADMIN_REVIEW_LIMIT));
+      const result = await db.prepare(
+        `SELECT id, email, status, approved_at
+         FROM users
+         WHERE status = 'approved'
+           AND email NOT IN (SELECT email FROM denied_users)
+         ORDER BY approved_at DESC, created_at DESC
+         LIMIT ?1`
+      )
+        .bind(safeLimit)
+        .all();
+
+      const rows = Array.isArray(result?.results) ? result.results : [];
+      return rows.map((row) => ({
+        id: Number(row.id),
+        email: row.email,
+        status: row.status,
+        approvedAt: row.approved_at || null,
+      }));
+    },
+
     async listDeniedUsers(limit = ADMIN_REVIEW_LIMIT) {
       const safeLimit = Math.max(1, Math.min(1000, Number(limit) || ADMIN_REVIEW_LIMIT));
       const result = await db.prepare(
@@ -859,6 +897,20 @@ export function createMemoryStore(seed = {}) {
           createdAt: null,
         }));
       return pending;
+    },
+
+    async listApprovedUsers(limit = ADMIN_REVIEW_LIMIT) {
+      const safeLimit = Math.max(1, Math.min(1000, Number(limit) || ADMIN_REVIEW_LIMIT));
+      return Array.from(usersById.values())
+        .filter((user) => user.status === 'approved' && !deniedByEmail.has(user.email))
+        .sort((a, b) => Number(b.id) - Number(a.id))
+        .slice(0, safeLimit)
+        .map((user) => ({
+          id: Number(user.id),
+          email: user.email,
+          status: user.status,
+          approvedAt: null,
+        }));
     },
 
     async listDeniedUsers(limit = ADMIN_REVIEW_LIMIT) {
@@ -1253,21 +1305,24 @@ function extractCsrfToken(request, payload) {
 }
 
 function extractAdminKey(request, payload, url) {
-  const fromHeader = request.headers.get('X-Admin-Key');
-  const fromPayload = payload?.adminKey;
-  const fromQuery = url.searchParams.get('admin_key') || url.searchParams.get('key');
+  const fromHeader = request.headers.get('X-Admin-Key') || request.headers.get('X-Admin-Token');
+  const fromPayload = payload?.adminToken ?? payload?.adminKey;
+  const fromQuery = url.searchParams.get('admin_token')
+    || url.searchParams.get('token')
+    || url.searchParams.get('admin_key')
+    || url.searchParams.get('key');
   return String(fromHeader || fromPayload || fromQuery || '').trim();
 }
 
 function validateAdminAccess(request, env, payload, url) {
-  const configured = String(env.ADMIN_KEY || '').trim();
+  const configured = String(env.ADMIN_LINK_TOKEN || env.ADMIN_KEY || '').trim();
   if (!configured) {
     return { ok: false, status: 503, error: 'Admin access is not configured.' };
   }
 
   const provided = extractAdminKey(request, payload, url);
   if (!provided) {
-    return { ok: false, status: 401, error: 'Admin authentication required.' };
+    return { ok: false, status: 401, error: 'Admin link token required.' };
   }
 
   if (!timingSafeEqual(provided, configured)) {
@@ -1281,6 +1336,7 @@ function toPublicUser(user) {
   if (!user) return null;
   return {
     id: Number(user.id),
+    username: user.email,
     email: user.email,
     status: user.status,
   };
@@ -1306,6 +1362,7 @@ async function handleAuthMe(request, env, store, url, nowSeconds) {
       user: auth.user
         ? {
             id: auth.user.id,
+            username: auth.user.email,
             email: auth.user.email,
             status: auth.user.status,
           }
@@ -1361,14 +1418,19 @@ async function handleAuthRegister(request, env, store, url, nowSeconds) {
     );
   }
 
-  const email = normalizeEmail(body.data.email);
+  const username = resolveLoginIdentifier(body.data);
   const password = String(body.data.password || '');
 
-  if (!isValidEmail(email)) {
-    return jsonResponse(request, env, { ok: false, error: 'Please enter a valid email address.' }, 400);
+  if (!isValidUsername(username)) {
+    return jsonResponse(
+      request,
+      env,
+      { ok: false, error: 'Please enter your first name (letters only).' },
+      400
+    );
   }
 
-  const denied = await store.getDeniedEmail(email);
+  const denied = await store.getDeniedEmail(username);
   if (denied) {
     return jsonResponse(
       request,
@@ -1397,7 +1459,7 @@ async function handleAuthRegister(request, env, store, url, nowSeconds) {
 
   try {
     const user = await store.createUser({
-      email,
+      email: username,
       passSalt: passwordRecord.salt,
       passHash: passwordRecord.hash,
       status,
@@ -1413,6 +1475,7 @@ async function handleAuthRegister(request, env, store, url, nowSeconds) {
           : 'Registration successful. You can now log in.',
         user: {
           id: Number(user.id),
+          username: user.email,
           email: user.email,
           status: user.status,
         },
@@ -1421,7 +1484,12 @@ async function handleAuthRegister(request, env, store, url, nowSeconds) {
     );
   } catch (error) {
     if (error instanceof DuplicateRecordError) {
-      return jsonResponse(request, env, { ok: false, error: 'An account with that email already exists.' }, 409);
+      return jsonResponse(
+        request,
+        env,
+        { ok: false, error: 'An account with that username already exists.' },
+        409
+      );
     }
     throw error;
   }
@@ -1471,13 +1539,13 @@ async function handleAuthLogin(request, env, store, url, nowSeconds) {
     );
   }
 
-  const email = normalizeEmail(body.data.email);
+  const username = resolveLoginIdentifier(body.data);
   const password = String(body.data.password || '');
-  if (!isValidEmail(email) || !password) {
-    return jsonResponse(request, env, { ok: false, error: 'Invalid email or password.' }, 401);
+  if (!isValidLoginIdentifier(username) || !password) {
+    return jsonResponse(request, env, { ok: false, error: 'Invalid username or password.' }, 401);
   }
 
-  const denied = await store.getDeniedEmail(email);
+  const denied = await store.getDeniedEmail(username);
   if (denied) {
     return jsonResponse(
       request,
@@ -1487,10 +1555,10 @@ async function handleAuthLogin(request, env, store, url, nowSeconds) {
     );
   }
 
-  const user = await store.getUserByEmail(email);
+  const user = await store.getUserByEmail(username);
 
   if (user) {
-    const lockout = await store.getLoginLockout(email);
+    const lockout = await store.getLoginLockout(username);
     if (Number(lockout?.lockedUntil || 0) > nowSeconds) {
       const retryAfter = Number(lockout.lockedUntil) - nowSeconds;
       return jsonResponse(
@@ -1512,12 +1580,12 @@ async function handleAuthLogin(request, env, store, url, nowSeconds) {
 
   if (!user || !isMatch) {
     if (user) {
-      await recordFailedLogin(store, email, nowSeconds);
+      await recordFailedLogin(store, username, nowSeconds);
     }
-    return jsonResponse(request, env, { ok: false, error: 'Invalid email or password.' }, 401);
+    return jsonResponse(request, env, { ok: false, error: 'Invalid username or password.' }, 401);
   }
 
-  await store.clearLoginLockout(email);
+  await store.clearLoginLockout(username);
 
   if (user.status !== 'approved') {
     return jsonResponse(
@@ -1552,6 +1620,7 @@ async function handleAuthLogin(request, env, store, url, nowSeconds) {
       ok: true,
       user: {
         id: Number(user.id),
+        username: user.email,
         email: user.email,
         status: user.status,
       },
@@ -1642,6 +1711,7 @@ async function handleProtectedExample(request, env, store, url, nowSeconds) {
     message: 'Authenticated request successful.',
     user: {
       id: auth.user.id,
+      username: auth.user.email,
       email: auth.user.email,
       status: auth.user.status,
     },
@@ -1723,11 +1793,25 @@ async function handleAdminReview(request, env, store, url) {
   }
 
   const pendingUsers = await store.listPendingUsers(ADMIN_REVIEW_LIMIT);
+  const approvedUsers = await store.listApprovedUsers(ADMIN_REVIEW_LIMIT);
   const deniedUsers = await store.listDeniedUsers(ADMIN_REVIEW_LIMIT);
   return jsonResponse(request, env, {
     ok: true,
-    pendingUsers,
-    deniedUsers,
+    pendingUsers: pendingUsers.map((user) => ({
+      ...user,
+      username: user.username || user.email,
+      email: user.email,
+    })),
+    approvedUsers: approvedUsers.map((user) => ({
+      ...user,
+      username: user.username || user.email,
+      email: user.email,
+    })),
+    deniedUsers: deniedUsers.map((user) => ({
+      ...user,
+      username: user.username || user.email,
+      email: user.email,
+    })),
   });
 }
 
@@ -1746,19 +1830,19 @@ async function handleAdminApprove(request, env, store, url) {
     return jsonResponse(request, env, { ok: false, error: access.error }, access.status);
   }
 
-  const email = normalizeEmail(body.data.email);
-  if (!isValidEmail(email)) {
-    return jsonResponse(request, env, { ok: false, error: 'Please provide a valid email.' }, 400);
+  const username = resolveLoginIdentifier(body.data);
+  if (!isValidLoginIdentifier(username)) {
+    return jsonResponse(request, env, { ok: false, error: 'Please provide a valid username.' }, 400);
   }
 
-  const user = await store.getUserByEmail(email);
+  const user = await store.getUserByEmail(username);
   if (!user) {
     return jsonResponse(request, env, { ok: false, error: 'User not found.' }, 404);
   }
 
-  const updated = await store.setUserStatusByEmail(email, 'approved');
-  await store.clearDeniedEmail(email);
-  await store.clearLoginLockout(email);
+  const updated = await store.setUserStatusByEmail(username, 'approved');
+  await store.clearDeniedEmail(username);
+  await store.clearLoginLockout(username);
 
   return jsonResponse(request, env, {
     ok: true,
@@ -1782,19 +1866,19 @@ async function handleAdminDeny(request, env, store, url) {
     return jsonResponse(request, env, { ok: false, error: access.error }, access.status);
   }
 
-  const email = normalizeEmail(body.data.email);
-  if (!isValidEmail(email)) {
-    return jsonResponse(request, env, { ok: false, error: 'Please provide a valid email.' }, 400);
+  const username = resolveLoginIdentifier(body.data);
+  if (!isValidLoginIdentifier(username)) {
+    return jsonResponse(request, env, { ok: false, error: 'Please provide a valid username.' }, 400);
   }
 
   const reason = normalizeAdminReason(body.data.reason);
-  const user = await store.getUserByEmail(email);
+  const user = await store.getUserByEmail(username);
 
-  await store.upsertDeniedEmail(email, reason);
-  await store.clearLoginLockout(email);
+  await store.upsertDeniedEmail(username, reason);
+  await store.clearLoginLockout(username);
 
   if (user) {
-    await store.setUserStatusByEmail(email, 'pending');
+    await store.setUserStatusByEmail(username, 'pending');
     await store.deleteSessionsByUserId(Number(user.id));
   }
 
@@ -1802,7 +1886,8 @@ async function handleAdminDeny(request, env, store, url) {
     ok: true,
     message: 'User denied.',
     denied: {
-      email,
+      username,
+      email: username,
       reason,
       userExists: Boolean(user),
     },
@@ -1912,6 +1997,7 @@ export const __test = {
   normalizeOrigin,
   isOriginAllowed,
   isValidEmail,
+  isValidUsername,
   isStrongPassword,
   isValidTokenShape,
   parseCookies,

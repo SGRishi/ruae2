@@ -75,7 +75,7 @@ test('admin can review, approve, and deny accounts', async () => {
     PASSWORD_PEPPER: 'test-pepper',
     ALLOWED_ORIGINS: 'https://rishisubjects.co.uk',
     REQUIRE_MANUAL_APPROVAL: 'true',
-    ADMIN_KEY: 'test-admin-password-1234567890',
+    ADMIN_LINK_TOKEN: 'test-admin-token-1234567890',
     AUTH_STORE: createMemoryStore(),
   };
 
@@ -88,7 +88,7 @@ test('admin can review, approve, and deny accounts', async () => {
   const register = await apiCall(handler, env, jar, '/api/auth/register', {
     method: 'POST',
     headers: { 'X-CSRF-Token': csrfToken },
-    json: { email: 'pending-user@example.com', password: 'StrongPassword123' },
+    json: { username: 'pendinguser', password: 'StrongPassword123' },
   });
   assert.equal(register.response.status, 201);
   assert.equal(register.data.user.status, 'pending');
@@ -96,7 +96,7 @@ test('admin can review, approve, and deny accounts', async () => {
   const pendingLogin = await apiCall(handler, env, jar, '/api/auth/login', {
     method: 'POST',
     headers: { 'X-CSRF-Token': csrfToken },
-    json: { email: 'pending-user@example.com', password: 'StrongPassword123' },
+    json: { username: 'pendinguser', password: 'StrongPassword123' },
   });
   assert.equal(pendingLogin.response.status, 403);
 
@@ -104,48 +104,50 @@ test('admin can review, approve, and deny accounts', async () => {
   assert.equal(reviewNoKey.response.status, 401);
 
   const reviewBadKey = await apiCall(handler, env, jar, '/api/admin/review', {
-    headers: { 'X-Admin-Key': 'wrong-key' },
+    headers: { 'X-Admin-Token': 'wrong-key' },
   });
   assert.equal(reviewBadKey.response.status, 403);
 
   const review = await apiCall(handler, env, jar, '/api/admin/review', {
-    headers: { 'X-Admin-Key': env.ADMIN_KEY },
+    headers: { 'X-Admin-Token': env.ADMIN_LINK_TOKEN },
   });
   assert.equal(review.response.status, 200);
   assert.equal(Array.isArray(review.data.pendingUsers), true);
+  assert.equal(Array.isArray(review.data.approvedUsers), true);
   assert.equal(
-    review.data.pendingUsers.some((user) => user.email === 'pending-user@example.com'),
+    review.data.pendingUsers.some((user) => user.username === 'pendinguser'),
     true
   );
 
   const approve = await apiCall(handler, env, jar, '/api/admin/approve', {
     method: 'POST',
-    headers: { 'X-Admin-Key': env.ADMIN_KEY },
-    json: { email: 'pending-user@example.com' },
+    headers: { 'X-Admin-Token': env.ADMIN_LINK_TOKEN },
+    json: { username: 'pendinguser' },
   });
   assert.equal(approve.response.status, 200);
   assert.equal(approve.data.user.status, 'approved');
+  assert.equal(approve.data.user.username, 'pendinguser');
 
   const approvedLogin = await apiCall(handler, env, jar, '/api/auth/login', {
     method: 'POST',
     headers: { 'X-CSRF-Token': csrfToken },
-    json: { email: 'pending-user@example.com', password: 'StrongPassword123' },
+    json: { username: 'pendinguser', password: 'StrongPassword123' },
   });
   assert.equal(approvedLogin.response.status, 200);
   csrfToken = approvedLogin.data.csrfToken;
 
   const deny = await apiCall(handler, env, jar, '/api/admin/deny', {
     method: 'POST',
-    headers: { 'X-Admin-Key': env.ADMIN_KEY },
-    json: { email: 'pending-user@example.com', reason: 'Not approved for access.' },
+    headers: { 'X-Admin-Token': env.ADMIN_LINK_TOKEN },
+    json: { username: 'pendinguser', reason: 'Not approved for access.' },
   });
   assert.equal(deny.response.status, 200);
-  assert.equal(deny.data.denied.email, 'pending-user@example.com');
+  assert.equal(deny.data.denied.username, 'pendinguser');
 
   const deniedLogin = await apiCall(handler, env, jar, '/api/auth/login', {
     method: 'POST',
     headers: { 'X-CSRF-Token': csrfToken },
-    json: { email: 'pending-user@example.com', password: 'StrongPassword123' },
+    json: { username: 'pendinguser', password: 'StrongPassword123' },
   });
   assert.equal(deniedLogin.response.status, 403);
   assert.equal(String(deniedLogin.data.error || '').includes('denied'), true);
@@ -153,7 +155,7 @@ test('admin can review, approve, and deny accounts', async () => {
   const deniedRegister = await apiCall(handler, env, jar, '/api/auth/register', {
     method: 'POST',
     headers: { 'X-CSRF-Token': csrfToken },
-    json: { email: 'pending-user@example.com', password: 'StrongPassword123' },
+    json: { username: 'pendinguser', password: 'StrongPassword123' },
   });
   assert.equal(deniedRegister.response.status, 403);
 });

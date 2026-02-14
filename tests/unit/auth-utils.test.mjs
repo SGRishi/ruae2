@@ -9,6 +9,14 @@ test('email validator handles common cases', () => {
   assert.equal(__test.isValidEmail('missing@tld'), false);
 });
 
+test('username validator accepts first-name format only', () => {
+  assert.equal(__test.isValidUsername('Rishi'), true);
+  assert.equal(__test.isValidUsername('ab'), true);
+  assert.equal(__test.isValidUsername('rishi123'), false);
+  assert.equal(__test.isValidUsername('a'), false);
+  assert.equal(__test.isValidUsername('averyveryveryveryveryveryveryverylongname'), false);
+});
+
 test('password strength enforces upper/lower/number/min length', () => {
   assert.equal(__test.isStrongPassword('Abcdefgh1234'), true);
   assert.equal(__test.isStrongPassword('abcdefgh1234'), false);

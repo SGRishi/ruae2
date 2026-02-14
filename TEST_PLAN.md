@@ -27,7 +27,7 @@ Validate production auth flow for:
 
 3. Register user
 
-- Submit register form with valid email/password.
+- Submit register form with valid first-name username (letters only) + password.
 - Expect success status message.
 
 4. Login user
@@ -69,8 +69,7 @@ Validate production auth flow for:
 
 11. Admin approval/denial flow
 
-- Open `https://rishisubjects.co.uk/admin/`.
-- Enter `ADMIN_KEY`.
+- Open `https://rishisubjects.co.uk/admin/#token=<ADMIN_LINK_TOKEN>`.
 - Confirm pending user appears and can be approved.
 - Confirm denied user cannot log in and cannot re-register.
 

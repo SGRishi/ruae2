@@ -90,8 +90,17 @@
         <h2>Create account</h2>
         <form id="signupForm">
           <label>
-            Email
-            <input id="signupEmail" type="email" autocomplete="email" required />
+            First name (username)
+            <input
+              id="signupUsername"
+              type="text"
+              inputmode="text"
+              autocomplete="given-name"
+              pattern="[A-Za-z]{2,40}"
+              minlength="2"
+              maxlength="40"
+              required
+            />
           </label>
           <label>
             Password
@@ -105,8 +114,17 @@
         <h2>Login</h2>
         <form id="loginForm">
           <label>
-            Email
-            <input id="loginEmail" type="email" autocomplete="email" required />
+            First name (username)
+            <input
+              id="loginUsername"
+              type="text"
+              inputmode="text"
+              autocomplete="username"
+              pattern="[A-Za-z]{2,40}"
+              minlength="2"
+              maxlength="40"
+              required
+            />
           </label>
           <label>
             Password

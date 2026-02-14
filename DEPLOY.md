@@ -21,7 +21,7 @@ npx wrangler d1 execute ruae-members-db --file d1/schema.sql
 ```bash
 npx wrangler secret put SESSION_SECRET
 npx wrangler secret put PASSWORD_PEPPER
-npx wrangler secret put ADMIN_KEY
+npx wrangler secret put ADMIN_LINK_TOKEN
 npx wrangler secret put OPENAI_API_KEY
 ```
 
@@ -80,8 +80,8 @@ Configure Worker vars in Cloudflare dashboard or wrangler:
 
 Admin route:
 
-- `https://rishisubjects.co.uk/admin/`
-- Enter `ADMIN_KEY` to review pending users and approve/deny access.
+- `https://rishisubjects.co.uk/admin/#token=<ADMIN_LINK_TOKEN>`
+- Keep this URL private; it grants admin review/approve/deny access.
 
 ## 5) Post-Deploy Smoke Checks
 

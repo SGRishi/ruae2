@@ -7,7 +7,7 @@ const schemeView = document.getElementById('schemeView');
 const aiModeSelect = document.getElementById('aiMode');
 const questionsEl = document.getElementById('questions');
 const logoutBtn = document.getElementById('logoutBtn');
-const sessionEmailEl = document.getElementById('sessionEmail');
+const sessionUsernameEl = document.getElementById('sessionEmail');
 
 const LOGIN_PATH = '/login/?next=%2Fruae%2F';
 const api = window.RuaeApi;
@@ -345,8 +345,8 @@ async function requireAuthenticatedUser() {
     return false;
   }
 
-  if (data.user && data.user.email) {
-    sessionEmailEl.textContent = data.user.email;
+  if (data.user && (data.user.username || data.user.email)) {
+    sessionUsernameEl.textContent = data.user.username || data.user.email;
   }
 
   return true;

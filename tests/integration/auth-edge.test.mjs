@@ -75,7 +75,7 @@ async function bootstrapCsrf(handler, env, jar) {
   return me.data.csrfToken;
 }
 
-test('register validation rejects invalid email and weak password', async () => {
+test('register validation rejects invalid username and weak password', async () => {
   const handler = createApiHandler();
   const env = {
     SESSION_SECRET: 'test-session-secret',
@@ -86,18 +86,18 @@ test('register validation rejects invalid email and weak password', async () => 
   const jar = new Map();
   const csrfToken = await bootstrapCsrf(handler, env, jar);
 
-  const badEmail = await apiCall(handler, env, jar, '/api/auth/register', {
+  const badUsername = await apiCall(handler, env, jar, '/api/auth/register', {
     method: 'POST',
     headers: { 'X-CSRF-Token': csrfToken },
-    json: { email: 'invalid-email', password: 'StrongPassword123' },
+    json: { username: '12', password: 'StrongPassword123' },
   });
-  assert.equal(badEmail.response.status, 400);
-  assert.equal(badEmail.data.ok, false);
+  assert.equal(badUsername.response.status, 400);
+  assert.equal(badUsername.data.ok, false);
 
   const weakPassword = await apiCall(handler, env, jar, '/api/auth/register', {
     method: 'POST',
     headers: { 'X-CSRF-Token': csrfToken },
-    json: { email: 'student@example.com', password: 'weakpass' },
+    json: { username: 'student', password: 'weakpass' },
   });
   assert.equal(weakPassword.response.status, 400);
   assert.equal(weakPassword.data.ok, false);
@@ -118,7 +118,7 @@ test('login lockout engages after repeated failed attempts', async () => {
     method: 'POST',
     headers: { 'X-CSRF-Token': csrfToken },
     json: {
-      email: 'lockout@example.com',
+      username: 'lockoutuser',
       password: 'StrongPassword123',
     },
   });
@@ -129,7 +129,7 @@ test('login lockout engages after repeated failed attempts', async () => {
       method: 'POST',
       headers: { 'X-CSRF-Token': csrfToken },
       json: {
-        email: 'lockout@example.com',
+        username: 'lockoutuser',
         password: 'WrongPassword123',
       },
     });
@@ -140,7 +140,7 @@ test('login lockout engages after repeated failed attempts', async () => {
     method: 'POST',
     headers: { 'X-CSRF-Token': csrfToken },
     json: {
-      email: 'lockout@example.com',
+      username: 'lockoutuser',
       password: 'WrongPassword123',
     },
   });
@@ -190,7 +190,7 @@ test('match endpoint enforces answer size and rate limits', async () => {
     method: 'POST',
     headers: { 'X-CSRF-Token': csrfToken },
     json: {
-      email: 'match-limit@example.com',
+      username: 'matchlimituser',
       password: 'StrongPassword123',
     },
   });
@@ -200,7 +200,7 @@ test('match endpoint enforces answer size and rate limits', async () => {
     method: 'POST',
     headers: { 'X-CSRF-Token': csrfToken },
     json: {
-      email: 'match-limit@example.com',
+      username: 'matchlimituser',
       password: 'StrongPassword123',
     },
   });

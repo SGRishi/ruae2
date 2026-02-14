@@ -25,7 +25,8 @@
 
 ## Input Validation + Abuse Controls
 
-- [x] Email format validation
+- [x] Username format validation (first name letters only)
+- [x] Legacy email identifier validation retained for backward compatibility
 - [x] Strong password policy (length + upper/lower/number)
 - [x] JSON payload parsing with size limits
 - [x] IP-based rate limiting (register/login/match)
@@ -36,7 +37,7 @@
 - [x] Secrets sourced from Cloudflare secrets/vars, not hard-coded
 - [x] `.env*` ignored by git (except `.env.example`)
 - [x] Safe error responses (no stack traces in API responses)
-- [x] Admin approval endpoints protected by `ADMIN_KEY`
+- [x] Admin approval endpoints protected by `ADMIN_LINK_TOKEN`
 
 ## Platform Headers
 
@@ -75,7 +76,7 @@ Required OpenAI key capability:
 
 Required Worker secret for admin approvals:
 
-- `ADMIN_KEY` (used by `/api/admin/*` and `/admin/`)
+- `ADMIN_LINK_TOKEN` (used by `/api/admin/*` and `/admin/#token=...`)
 
 ## Verified Status (2026-02-14)
 

@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
     <title>RUAE Admin</title>
     <style>
       :root {
@@ -38,7 +39,6 @@
         gap: 0.75rem;
         flex-wrap: wrap;
       }
-      input,
       button {
         height: 2.25rem;
         border-radius: 8px;
@@ -87,6 +87,9 @@
       .status.ok {
         color: #9be09d;
       }
+      .status.info {
+        color: #9cb0ce;
+      }
       .muted {
         color: #7b879c;
         font-size: 0.9rem;
@@ -105,21 +108,22 @@
   <body>
     <main>
       <h1>RUAE Admin Access</h1>
-      <p>Use your admin password to review signups and approve or deny accounts.</p>
+      <p>Use your private admin link to review signups and approve or deny accounts.</p>
       <p class="muted">API base: <code id="apiBase"></code></p>
 
       <section class="panel">
-        <h2>Admin Sign-in</h2>
+        <h2>Admin Link</h2>
         <div class="row">
-          <input
-            id="adminKey"
-            type="password"
-            placeholder="Enter admin password"
-            autocomplete="current-password"
-          />
-          <button id="connectBtn" type="button">Connect</button>
           <button id="refreshBtn" class="secondary" type="button" disabled>Refresh</button>
         </div>
+        <p class="muted">
+          Open this page with:
+          <code>/admin/#token=YOUR_LONG_ADMIN_TOKEN</code>
+        </p>
+        <p class="muted">
+          Query form also works:
+          <code>/admin/?token=YOUR_LONG_ADMIN_TOKEN</code>
+        </p>
         <div id="status" class="status" role="status" aria-live="polite"></div>
       </section>
 
@@ -128,7 +132,7 @@
         <table>
           <thead>
             <tr>
-              <th>Email</th>
+              <th>Username</th>
               <th>Status</th>
               <th>Created</th>
               <th>Actions</th>
@@ -136,7 +140,26 @@
           </thead>
           <tbody id="pendingBody">
             <tr>
-              <td colspan="4" class="muted">Connect to load users.</td>
+              <td colspan="4" class="muted">Open this page with your admin link token to load users.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel">
+        <h2>Approved Users</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Status</th>
+              <th>Approved At</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="approvedBody">
+            <tr>
+              <td colspan="4" class="muted">Open this page with your admin link token to load users.</td>
             </tr>
           </tbody>
         </table>
@@ -147,7 +170,7 @@
         <table>
           <thead>
             <tr>
-              <th>Email</th>
+              <th>Username</th>
               <th>Reason</th>
               <th>Denied At</th>
               <th>Actions</th>
@@ -155,7 +178,7 @@
           </thead>
           <tbody id="deniedBody">
             <tr>
-              <td colspan="4" class="muted">Connect to load users.</td>
+              <td colspan="4" class="muted">Open this page with your admin link token to load users.</td>
             </tr>
           </tbody>
         </table>
@@ -163,7 +186,7 @@
 
       <p class="muted">
         Keep this URL private:
-        <code>/admin/</code>
+        <code>/admin/#token=...</code>
       </p>
       <p><a href="/">Back home</a></p>
     </main>

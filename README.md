@@ -69,7 +69,7 @@ Required secrets:
 
 - `SESSION_SECRET`
 - `PASSWORD_PEPPER`
-- `ADMIN_KEY` (admin password for `/admin/` approval endpoints)
+- `ADMIN_LINK_TOKEN` (long random token embedded in private `/admin/#token=...` link)
 
 Optional secret:
 
@@ -85,10 +85,15 @@ Optional vars:
 
 For approval workflow, set `REQUIRE_MANUAL_APPROVAL=true`.
 
+Auth identifier:
+
+- Users register/login with `username` (first name, letters only) + password.
+- Backend keeps legacy `email` request field support for compatibility, but UI uses username.
+
 ## Admin Approval Flow
 
-1. User signs up at `/login/` and stays in `pending` status.
-2. Admin opens `/admin/` and enters `ADMIN_KEY`.
+1. User signs up at `/login/` with first-name username + password and stays in `pending` status.
+2. Admin opens `/admin/#token=<ADMIN_LINK_TOKEN>` (or `/admin/?token=<ADMIN_LINK_TOKEN>`).
 3. Admin approves or denies users.
 4. Approved users can log in; denied users are blocked from login and registration.
 

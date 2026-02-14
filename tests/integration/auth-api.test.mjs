@@ -107,7 +107,7 @@ test('register -> login -> session persistence -> logout flow', async () => {
   const registerNoCsrf = await apiCall(handler, env, jar, '/api/auth/register', {
     method: 'POST',
     json: {
-      email: 'student@example.com',
+      username: 'student',
       password: 'StrongPassword123',
     },
   });
@@ -122,7 +122,7 @@ test('register -> login -> session persistence -> logout flow', async () => {
       'X-CSRF-Token': csrfToken,
     },
     json: {
-      email: 'student@example.com',
+      username: 'student',
       password: 'StrongPassword123',
     },
   });
@@ -134,7 +134,7 @@ test('register -> login -> session persistence -> logout flow', async () => {
       'X-CSRF-Token': csrfToken,
     },
     json: {
-      email: 'student@example.com',
+      username: 'student',
       password: 'WrongPassword123',
     },
   });
@@ -146,7 +146,7 @@ test('register -> login -> session persistence -> logout flow', async () => {
       'X-CSRF-Token': csrfToken,
     },
     json: {
-      email: 'student@example.com',
+      username: 'student',
       password: 'StrongPassword123',
     },
   });
@@ -159,7 +159,7 @@ test('register -> login -> session persistence -> logout flow', async () => {
   assert.equal(me2.response.status, 200);
   assert.equal(me2.data.authenticated, true);
   assert.equal(me2.data.approved, true);
-  assert.equal(me2.data.user.email, 'student@example.com');
+  assert.equal(me2.data.user.username, 'student');
 
   const protectedOk = await apiCall(handler, env, jar, '/api/protected/example');
   assert.equal(protectedOk.response.status, 200);

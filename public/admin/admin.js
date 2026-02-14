@@ -2,17 +2,16 @@
   const api = window.RuaeApi;
   const statusEl = document.getElementById('status');
   const apiBaseEl = document.getElementById('apiBase');
-  const adminKeyEl = document.getElementById('adminKey');
-  const connectBtn = document.getElementById('connectBtn');
   const refreshBtn = document.getElementById('refreshBtn');
   const pendingBody = document.getElementById('pendingBody');
+  const approvedBody = document.getElementById('approvedBody');
   const deniedBody = document.getElementById('deniedBody');
 
-  let adminKey = '';
+  let adminToken = '';
 
-  function setStatus(message, isError) {
+  function setStatus(message, level) {
     statusEl.textContent = message || '';
-    statusEl.className = isError ? 'status error' : 'status ok';
+    statusEl.className = `status ${level || 'info'}`;
   }
 
   function toIsoOrDash(value) {
@@ -24,12 +23,30 @@
     }
   }
 
+  function readTokenFromLocation() {
+    const hash = String(window.location.hash || '').replace(/^#/, '');
+    const hashParams = new URLSearchParams(hash);
+    const queryParams = new URLSearchParams(window.location.search || '');
+    const hashToken = hashParams.get('token');
+    const queryToken = queryParams.get('token') || queryParams.get('admin_token');
+    return String(hashToken || queryToken || '').trim();
+  }
+
+  function normalizeLocationForToken() {
+    const queryParams = new URLSearchParams(window.location.search || '');
+    const queryToken = queryParams.get('token') || queryParams.get('admin_token');
+    if (!queryToken) return;
+
+    const nextHash = `#token=${encodeURIComponent(queryToken)}`;
+    const nextPath = window.location.pathname + nextHash;
+    window.history.replaceState({}, '', nextPath);
+  }
+
   function adminHeaders() {
-    const headers = new Headers({
+    return new Headers({
       'Content-Type': 'application/json',
-      'X-Admin-Key': adminKey,
+      'X-Admin-Token': adminToken,
     });
-    return headers;
   }
 
   async function adminRequest(path, options = {}) {
@@ -65,21 +82,25 @@
     tableBody.appendChild(row);
   }
 
-  async function approveUser(email) {
+  function userKey(user) {
+    return String(user?.username || user?.email || '').trim();
+  }
+
+  async function approveUser(username) {
     const { response, data } = await adminRequest('/api/admin/approve', {
       method: 'POST',
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ username }),
     });
     if (!response.ok) {
       throw new Error(data.error || 'Failed to approve user.');
     }
   }
 
-  async function denyUser(email) {
+  async function denyUser(username) {
     const reason = window.prompt('Reason for denial (optional):', 'Denied by administrator.') || '';
     const { response, data } = await adminRequest('/api/admin/deny', {
       method: 'POST',
-      body: JSON.stringify({ email, reason }),
+      body: JSON.stringify({ username, reason }),
     });
     if (!response.ok) {
       throw new Error(data.error || 'Failed to deny user.');
@@ -89,9 +110,10 @@
   function buildPendingRow(user, reload) {
     const row = document.createElement('tr');
 
-    const email = document.createElement('td');
-    email.textContent = user.email;
-    row.appendChild(email);
+    const username = userKey(user);
+    const name = document.createElement('td');
+    name.textContent = username;
+    row.appendChild(name);
 
     const status = document.createElement('td');
     status.textContent = user.status || 'pending';
@@ -109,12 +131,12 @@
     approveBtn.textContent = 'Approve';
     approveBtn.addEventListener('click', async function () {
       try {
-        setStatus(`Approving ${user.email}...`, false);
-        await approveUser(user.email);
+        setStatus(`Approving ${username}...`, 'info');
+        await approveUser(username);
         await reload();
-        setStatus(`Approved ${user.email}.`, false);
+        setStatus(`Approved ${username}.`, 'ok');
       } catch (error) {
-        setStatus(error.message || 'Approval failed.', true);
+        setStatus(error.message || 'Approval failed.', 'error');
       }
     });
 
@@ -124,12 +146,12 @@
     denyBtn.textContent = 'Deny';
     denyBtn.addEventListener('click', async function () {
       try {
-        setStatus(`Denying ${user.email}...`, false);
-        await denyUser(user.email);
+        setStatus(`Denying ${username}...`, 'info');
+        await denyUser(username);
         await reload();
-        setStatus(`Denied ${user.email}.`, false);
+        setStatus(`Denied ${username}.`, 'ok');
       } catch (error) {
-        setStatus(error.message || 'Deny failed.', true);
+        setStatus(error.message || 'Deny failed.', 'error');
       }
     });
 
@@ -141,12 +163,53 @@
     return row;
   }
 
+  function buildApprovedRow(user, reload) {
+    const row = document.createElement('tr');
+
+    const username = userKey(user);
+    const name = document.createElement('td');
+    name.textContent = username;
+    row.appendChild(name);
+
+    const status = document.createElement('td');
+    status.textContent = user.status || 'approved';
+    row.appendChild(status);
+
+    const approvedAt = document.createElement('td');
+    approvedAt.textContent = toIsoOrDash(user.approvedAt);
+    row.appendChild(approvedAt);
+
+    const actions = document.createElement('td');
+    actions.className = 'actions';
+
+    const denyBtn = document.createElement('button');
+    denyBtn.type = 'button';
+    denyBtn.className = 'danger';
+    denyBtn.textContent = 'Deny';
+    denyBtn.addEventListener('click', async function () {
+      try {
+        setStatus(`Denying ${username}...`, 'info');
+        await denyUser(username);
+        await reload();
+        setStatus(`Denied ${username}.`, 'ok');
+      } catch (error) {
+        setStatus(error.message || 'Deny failed.', 'error');
+      }
+    });
+
+    actions.appendChild(denyBtn);
+    row.appendChild(actions);
+
+    return row;
+  }
+
   function buildDeniedRow(user, reload) {
     const row = document.createElement('tr');
 
-    const email = document.createElement('td');
-    email.textContent = user.email;
-    row.appendChild(email);
+    const username = userKey(user);
+    const name = document.createElement('td');
+    name.textContent = username;
+    row.appendChild(name);
 
     const reason = document.createElement('td');
     reason.textContent = user.reason || 'Denied by administrator.';
@@ -164,12 +227,12 @@
     approveBtn.textContent = 'Approve';
     approveBtn.addEventListener('click', async function () {
       try {
-        setStatus(`Approving ${user.email}...`, false);
-        await approveUser(user.email);
+        setStatus(`Approving ${username}...`, 'info');
+        await approveUser(username);
         await reload();
-        setStatus(`Approved ${user.email}.`, false);
+        setStatus(`Approved ${username}.`, 'ok');
       } catch (error) {
-        setStatus(error.message || 'Approval failed.', true);
+        setStatus(error.message || 'Approval failed.', 'error');
       }
     });
 
@@ -180,26 +243,22 @@
   }
 
   async function loadUsers() {
-    if (!adminKey) {
-      setStatus('Enter your admin password first.', true);
+    if (!adminToken) {
+      setStatus('Admin link token missing. Open /admin/#token=YOUR_LONG_ADMIN_TOKEN', 'error');
       return;
     }
 
-    const { response, data } = await adminRequest('/api/admin/review', {
-      method: 'GET',
-      headers: new Headers({
-        'X-Admin-Key': adminKey,
-      }),
-    });
-
+    const { response, data } = await adminRequest('/api/admin/review');
     if (!response.ok) {
       throw new Error(data.error || 'Unable to load review data.');
     }
 
     pendingBody.innerHTML = '';
+    approvedBody.innerHTML = '';
     deniedBody.innerHTML = '';
 
     const pendingUsers = Array.isArray(data.pendingUsers) ? data.pendingUsers : [];
+    const approvedUsers = Array.isArray(data.approvedUsers) ? data.approvedUsers : [];
     const deniedUsers = Array.isArray(data.deniedUsers) ? data.deniedUsers : [];
 
     if (!pendingUsers.length) {
@@ -207,6 +266,14 @@
     } else {
       pendingUsers.forEach((user) => {
         pendingBody.appendChild(buildPendingRow(user, loadUsers));
+      });
+    }
+
+    if (!approvedUsers.length) {
+      emptyTable(approvedBody, 'No approved users yet.', 4);
+    } else {
+      approvedUsers.forEach((user) => {
+        approvedBody.appendChild(buildApprovedRow(user, loadUsers));
       });
     }
 
@@ -219,37 +286,36 @@
     }
   }
 
-  connectBtn.addEventListener('click', async function () {
-    adminKey = String(adminKeyEl.value || '').trim();
-    if (!adminKey) {
-      setStatus('Enter your admin password.', true);
-      return;
-    }
-    refreshBtn.disabled = false;
-
-    try {
-      setStatus('Connecting...', false);
-      await loadUsers();
-      setStatus('Connected. Review data loaded.', false);
-    } catch (error) {
-      setStatus(error.message || 'Connection failed.', true);
-    }
-  });
-
   refreshBtn.addEventListener('click', async function () {
     try {
-      setStatus('Refreshing review data...', false);
+      setStatus('Refreshing review data...', 'info');
       await loadUsers();
-      setStatus('Review data refreshed.', false);
+      setStatus('Review data refreshed.', 'ok');
     } catch (error) {
-      setStatus(error.message || 'Refresh failed.', true);
+      setStatus(error.message || 'Refresh failed.', 'error');
     }
   });
 
   if (!api) {
-    setStatus('Auth client failed to load.', true);
+    setStatus('Auth client failed to load.', 'error');
     return;
   }
 
+  normalizeLocationForToken();
+  adminToken = readTokenFromLocation();
   apiBaseEl.textContent = api.getApiBase() || 'same origin';
+  refreshBtn.disabled = !adminToken;
+
+  if (!adminToken) {
+    setStatus('Admin link token missing. Open /admin/#token=YOUR_LONG_ADMIN_TOKEN', 'error');
+    return;
+  }
+
+  loadUsers()
+    .then(function () {
+      setStatus('Connected via admin link token.', 'ok');
+    })
+    .catch(function (error) {
+      setStatus(error.message || 'Unable to load admin data.', 'error');
+    });
 })();

@@ -10,6 +10,10 @@
   - new admin UI at `/admin/`
   - denied-user enforcement for registration and login
   - new integration test `tests/integration/admin-approval.test.mjs`
+- Updated auth/admin UX:
+  - login/register now use first-name `username` + password
+  - admin access switched from typed password prompt to private tokenized URL (`/admin/#token=...`)
+  - admin dashboard now shows `pending`, `approved`, and `denied` user lists
 - Expanded automated tests:
   - e2e happy path: `tests/e2e/auth-happy-path.test.mjs`
   - integration edge/security coverage: `tests/integration/auth-edge.test.mjs`

@@ -98,7 +98,7 @@ test('frontend auth client + worker handler complete happy path', async () => {
     method: 'POST',
     csrf: true,
     json: {
-      email: 'e2e-user@example.com',
+      username: 'eveuser',
       password: 'StrongPassword123',
     },
   });
@@ -109,7 +109,7 @@ test('frontend auth client + worker handler complete happy path', async () => {
     method: 'POST',
     csrf: true,
     json: {
-      email: 'e2e-user@example.com',
+      username: 'eveuser',
       password: 'StrongPassword123',
     },
   });

@@ -42,20 +42,21 @@
       return;
     }
 
-    setStatus(`Logged in as ${data.user.email}.`, false);
+    const username = data.user?.username || data.user?.email || 'user';
+    setStatus(`Logged in as ${username}.`, false);
   }
 
   signupForm.addEventListener('submit', async function (event) {
     event.preventDefault();
 
-    const email = document.getElementById('signupEmail').value.trim();
+    const username = document.getElementById('signupUsername').value.trim();
     const password = document.getElementById('signupPassword').value;
 
     try {
       const { response, data } = await api.apiRequest('/api/auth/register', {
         method: 'POST',
         csrf: true,
-        json: { email, password },
+        json: { username, password },
       });
 
       if (!response.ok) {
@@ -73,14 +74,14 @@
   loginForm.addEventListener('submit', async function (event) {
     event.preventDefault();
 
-    const email = document.getElementById('loginEmail').value.trim();
+    const username = document.getElementById('loginUsername').value.trim();
     const password = document.getElementById('loginPassword').value;
 
     try {
       const { response, data } = await api.apiRequest('/api/auth/login', {
         method: 'POST',
         csrf: true,
-        json: { email, password },
+        json: { username, password },
       });
 
       if (!response.ok) {
