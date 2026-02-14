@@ -68,6 +68,29 @@ async function apiCall(handler, env, cookieJar, path, options = {}) {
   return { response, data };
 }
 
+test('CORS preflight allows admin headers', async () => {
+  const handler = createApiHandler();
+  const env = {
+    SESSION_SECRET: 'test-session-secret',
+    PASSWORD_PEPPER: 'test-pepper',
+    ALLOWED_ORIGINS: 'https://rishisubjects.co.uk',
+    AUTH_STORE: createMemoryStore(),
+  };
+
+  const jar = new Map();
+  const preflight = await apiCall(handler, env, jar, '/api/admin/review', {
+    method: 'OPTIONS',
+    headers: {
+      'Access-Control-Request-Method': 'GET',
+      'Access-Control-Request-Headers': 'x-admin-token, content-type',
+    },
+  });
+
+  assert.equal(preflight.response.status, 204);
+  const allowed = preflight.response.headers.get('access-control-allow-headers') || '';
+  assert.equal(allowed.toLowerCase().includes('x-admin-token'), true);
+});
+
 test('admin can review, approve, and deny accounts', async () => {
   const handler = createApiHandler();
   const env = {
