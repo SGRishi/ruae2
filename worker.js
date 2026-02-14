@@ -1315,8 +1315,9 @@ function extractAdminKey(request, payload, url) {
 }
 
 function validateAdminAccess(request, env, payload, url) {
-  const configured = String(env.ADMIN_LINK_TOKEN || env.ADMIN_KEY || '').trim();
-  if (!configured) {
+  const primary = String(env.ADMIN_LINK_TOKEN || '').trim();
+  const legacy = String(env.ADMIN_KEY || '').trim();
+  if (!primary && !legacy) {
     return { ok: false, status: 503, error: 'Admin access is not configured.' };
   }
 
@@ -1325,7 +1326,8 @@ function validateAdminAccess(request, env, payload, url) {
     return { ok: false, status: 401, error: 'Admin link token required.' };
   }
 
-  if (!timingSafeEqual(provided, configured)) {
+  const matches = (primary && timingSafeEqual(provided, primary)) || (legacy && timingSafeEqual(provided, legacy));
+  if (!matches) {
     return { ok: false, status: 403, error: 'Invalid admin credentials.' };
   }
 
