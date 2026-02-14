@@ -17,6 +17,7 @@ Production deployment targets:
 ## Repository Layout
 
 - `public/`: frontend pages and assets
+- `public/admin/`: admin approval UI (`/admin/`)
 - `worker.js`: Worker API with auth, CSRF, rate limiting, RUAE match endpoint
 - `d1/schema.sql`: D1 schema
 - `scripts/build-frontend.mjs`: frontend build script
@@ -68,6 +69,7 @@ Required secrets:
 
 - `SESSION_SECRET`
 - `PASSWORD_PEPPER`
+- `ADMIN_KEY` (admin password for `/admin/` approval endpoints)
 
 Optional secret:
 
@@ -80,6 +82,15 @@ Optional vars:
 - `PAGES_PROJECT_NAME`
 - `REQUIRE_MANUAL_APPROVAL` (`true` / `false`)
 - `ALLOW_LOCALHOST_ORIGINS` (`true` / `false`)
+
+For approval workflow, set `REQUIRE_MANUAL_APPROVAL=true`.
+
+## Admin Approval Flow
+
+1. User signs up at `/login/` and stays in `pending` status.
+2. Admin opens `/admin/` and enters `ADMIN_KEY`.
+3. Admin approves or denies users.
+4. Approved users can log in; denied users are blocked from login and registration.
 
 ## Local Development
 

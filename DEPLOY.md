@@ -21,6 +21,7 @@ npx wrangler d1 execute ruae-members-db --file d1/schema.sql
 ```bash
 npx wrangler secret put SESSION_SECRET
 npx wrangler secret put PASSWORD_PEPPER
+npx wrangler secret put ADMIN_KEY
 npx wrangler secret put OPENAI_API_KEY
 ```
 
@@ -74,8 +75,13 @@ Configure Worker vars in Cloudflare dashboard or wrangler:
 
 - `ALLOWED_ORIGINS=https://rishisubjects.co.uk`
 - `PAGES_PROJECT_NAME=rishisubjects`
-- `REQUIRE_MANUAL_APPROVAL=false`
+- `REQUIRE_MANUAL_APPROVAL=true`
 - `ALLOW_LOCALHOST_ORIGINS=true` (optional for local testing)
+
+Admin route:
+
+- `https://rishisubjects.co.uk/admin/`
+- Enter `ADMIN_KEY` to review pending users and approve/deny access.
 
 ## 5) Post-Deploy Smoke Checks
 

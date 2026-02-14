@@ -36,6 +36,7 @@
 - [x] Secrets sourced from Cloudflare secrets/vars, not hard-coded
 - [x] `.env*` ignored by git (except `.env.example`)
 - [x] Safe error responses (no stack traces in API responses)
+- [x] Admin approval endpoints protected by `ADMIN_KEY`
 
 ## Platform Headers
 
@@ -71,6 +72,10 @@ Required OpenAI key capability:
 
 - Permission to call `POST /v1/responses`
 - Key must stay server-side only (Worker secret), never bundled to frontend
+
+Required Worker secret for admin approvals:
+
+- `ADMIN_KEY` (used by `/api/admin/*` and `/admin/`)
 
 ## Verified Status (2026-02-14)
 

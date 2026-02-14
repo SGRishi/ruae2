@@ -7,7 +7,7 @@
     "build": "node scripts/build-frontend.mjs",
     "lint": "npm run lint:syntax && npm run lint:eslint",
     "lint:eslint": "eslint .",
-    "lint:syntax": "node -e \"import('./worker.js')\" && node --check public/auth-client.js && node --check public/app.js && node --check public/login/login.js && node --check scripts/build-frontend.mjs",
+    "lint:syntax": "node -e \"import('./worker.js')\" && node --check public/auth-client.js && node --check public/app.js && node --check public/login/login.js && node --check public/admin/admin.js && node --check scripts/build-frontend.mjs",
     "format": "prettier --write \"README.md\" \"DEPLOY.md\" \"SECURITY.md\" \"TEST_PLAN.md\" \"CHANGELOG.md\" \"package.json\" \"eslint.config.js\" \"tsconfig.typecheck.json\" \".prettierrc.json\" \".github/workflows/*.yml\" \"tests/**/*.mjs\"",
     "format:check": "prettier --check \"README.md\" \"DEPLOY.md\" \"SECURITY.md\" \"TEST_PLAN.md\" \"CHANGELOG.md\" \"package.json\" \"eslint.config.js\" \"tsconfig.typecheck.json\" \".prettierrc.json\" \".github/workflows/*.yml\" \"tests/**/*.mjs\"",
     "smoke:deploy": "bash scripts/smoke-deploy.sh",

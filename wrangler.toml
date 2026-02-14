@@ -16,5 +16,5 @@ custom_domain = true
 [vars]
 ALLOWED_ORIGINS = "https://rishisubjects.co.uk,https://www.rishisubjects.co.uk,https://rishisubjects.pages.dev"
 PAGES_PROJECT_NAME = "rishisubjects"
-REQUIRE_MANUAL_APPROVAL = "false"
+REQUIRE_MANUAL_APPROVAL = "true"
 ALLOW_LOCALHOST_ORIGINS = "true"

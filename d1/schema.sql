@@ -35,6 +35,12 @@ CREATE TABLE IF NOT EXISTS login_lockouts (
   updated_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS denied_users (
+  email TEXT PRIMARY KEY,
+  reason TEXT,
+  denied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_users_status_created
   ON users (status, created_at);
 
@@ -46,3 +52,6 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id
 
 CREATE INDEX IF NOT EXISTS idx_login_lockouts_until
   ON login_lockouts (locked_until);
+
+CREATE INDEX IF NOT EXISTS idx_denied_users_denied_at
+  ON denied_users (denied_at);

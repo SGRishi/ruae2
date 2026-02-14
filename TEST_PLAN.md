@@ -67,6 +67,13 @@ Validate production auth flow for:
 - Send invalid JSON to auth endpoints.
 - Expect `400` safe JSON error without stack trace.
 
+11. Admin approval/denial flow
+
+- Open `https://rishisubjects.co.uk/admin/`.
+- Enter `ADMIN_KEY`.
+- Confirm pending user appears and can be approved.
+- Confirm denied user cannot log in and cannot re-register.
+
 ## Automation Cross-Check
 
 Run locally before release:

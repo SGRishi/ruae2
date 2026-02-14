@@ -5,6 +5,11 @@
 - Added CI workflow `.github/workflows/ci.yml` running install, lint, typecheck, format check, tests, and build.
 - Added smoke workflow `.github/workflows/smoke-deploy.yml` and script `scripts/smoke-deploy.sh` for deployed endpoint verification.
 - Added ESLint, Prettier, and strict scoped TypeScript typecheck configuration.
+- Added admin approval system:
+  - new admin API endpoints (`/api/admin/review`, `/api/admin/approve`, `/api/admin/deny`)
+  - new admin UI at `/admin/`
+  - denied-user enforcement for registration and login
+  - new integration test `tests/integration/admin-approval.test.mjs`
 - Expanded automated tests:
   - e2e happy path: `tests/e2e/auth-happy-path.test.mjs`
   - integration edge/security coverage: `tests/integration/auth-edge.test.mjs`

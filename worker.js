@@ -18,6 +18,7 @@ const RATE_LIMIT_REGISTER_IP_MAX = 6;
 const RATE_LIMIT_MATCH_IP_MAX = 40;
 const LOCKOUT_START_AT_FAILURE = 5;
 const LOCKOUT_MAX_SECONDS = 60 * 60;
+const ADMIN_REVIEW_LIMIT = 200;
 
 const DEFAULT_ALLOWED_ORIGINS = new Set(['https://rishisubjects.co.uk']);
 const DEV_LOCAL_ORIGINS = new Set([
@@ -294,6 +295,12 @@ function getClientIp(request) {
 
 function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+function normalizeAdminReason(value) {
+  const reason = String(value || '').trim();
+  if (!reason) return 'Denied by administrator.';
+  return reason.slice(0, 240);
 }
 
 function isValidEmail(value) {
@@ -598,6 +605,107 @@ function createD1Store(db) {
         .bind(email)
         .run();
     },
+
+    async listPendingUsers(limit = ADMIN_REVIEW_LIMIT) {
+      const safeLimit = Math.max(1, Math.min(1000, Number(limit) || ADMIN_REVIEW_LIMIT));
+      const result = await db.prepare(
+        `SELECT id, email, status, created_at
+         FROM users
+         WHERE status = 'pending'
+           AND email NOT IN (SELECT email FROM denied_users)
+         ORDER BY created_at ASC
+         LIMIT ?1`
+      )
+        .bind(safeLimit)
+        .all();
+
+      const rows = Array.isArray(result?.results) ? result.results : [];
+      return rows.map((row) => ({
+        id: Number(row.id),
+        email: row.email,
+        status: row.status,
+        createdAt: row.created_at || null,
+      }));
+    },
+
+    async listDeniedUsers(limit = ADMIN_REVIEW_LIMIT) {
+      const safeLimit = Math.max(1, Math.min(1000, Number(limit) || ADMIN_REVIEW_LIMIT));
+      const result = await db.prepare(
+        `SELECT d.email, d.reason, d.denied_at, u.id AS user_id, u.status AS user_status
+         FROM denied_users d
+         LEFT JOIN users u ON u.email = d.email
+         ORDER BY d.denied_at DESC
+         LIMIT ?1`
+      )
+        .bind(safeLimit)
+        .all();
+
+      const rows = Array.isArray(result?.results) ? result.results : [];
+      return rows.map((row) => ({
+        email: row.email,
+        reason: row.reason || '',
+        deniedAt: row.denied_at || null,
+        userId: row.user_id ? Number(row.user_id) : null,
+        userStatus: row.user_status || null,
+      }));
+    },
+
+    async getDeniedEmail(email) {
+      const row = await db.prepare(
+        `SELECT email, reason, denied_at
+         FROM denied_users
+         WHERE email = ?1
+         LIMIT 1`
+      )
+        .bind(email)
+        .first();
+
+      if (!row) return null;
+      return {
+        email: row.email,
+        reason: row.reason || '',
+        deniedAt: row.denied_at || null,
+      };
+    },
+
+    async upsertDeniedEmail(email, reason) {
+      await db.prepare(
+        `INSERT INTO denied_users (email, reason, denied_at)
+         VALUES (?1, ?2, CURRENT_TIMESTAMP)
+         ON CONFLICT(email)
+         DO UPDATE SET reason = excluded.reason,
+                       denied_at = excluded.denied_at`
+      )
+        .bind(email, reason)
+        .run();
+    },
+
+    async clearDeniedEmail(email) {
+      await db.prepare('DELETE FROM denied_users WHERE email = ?1')
+        .bind(email)
+        .run();
+    },
+
+    async setUserStatusByEmail(email, status) {
+      await db.prepare(
+        `UPDATE users
+         SET status = ?1,
+             approved_at = CASE
+               WHEN ?1 = 'approved' THEN CURRENT_TIMESTAMP
+               ELSE approved_at
+             END
+         WHERE email = ?2`
+      )
+        .bind(status, email)
+        .run();
+      return this.getUserByEmail(email);
+    },
+
+    async deleteSessionsByUserId(userId) {
+      await db.prepare('DELETE FROM sessions WHERE user_id = ?1')
+        .bind(userId)
+        .run();
+    },
   };
 }
 
@@ -609,6 +717,7 @@ export function createMemoryStore(seed = {}) {
   const sessionsByTokenHash = new Map();
   const rateLimit = new Map();
   const lockouts = new Map();
+  const deniedByEmail = new Map();
 
   const initialUsers = Array.isArray(seed.users) ? seed.users : [];
   for (const user of initialUsers) {
@@ -735,6 +844,75 @@ export function createMemoryStore(seed = {}) {
 
     async clearLoginLockout(email) {
       lockouts.delete(normalizeEmail(email));
+    },
+
+    async listPendingUsers(limit = ADMIN_REVIEW_LIMIT) {
+      const safeLimit = Math.max(1, Math.min(1000, Number(limit) || ADMIN_REVIEW_LIMIT));
+      const pending = Array.from(usersById.values())
+        .filter((user) => user.status === 'pending' && !deniedByEmail.has(user.email))
+        .sort((a, b) => Number(a.id) - Number(b.id))
+        .slice(0, safeLimit)
+        .map((user) => ({
+          id: Number(user.id),
+          email: user.email,
+          status: user.status,
+          createdAt: null,
+        }));
+      return pending;
+    },
+
+    async listDeniedUsers(limit = ADMIN_REVIEW_LIMIT) {
+      const safeLimit = Math.max(1, Math.min(1000, Number(limit) || ADMIN_REVIEW_LIMIT));
+      return Array.from(deniedByEmail.entries())
+        .slice(0, safeLimit)
+        .map(([email, denied]) => {
+          const user = usersByEmail.get(email) || null;
+          return {
+            email,
+            reason: denied.reason,
+            deniedAt: denied.deniedAt,
+            userId: user ? Number(user.id) : null,
+            userStatus: user ? user.status : null,
+          };
+        });
+    },
+
+    async getDeniedEmail(email) {
+      const denied = deniedByEmail.get(normalizeEmail(email));
+      if (!denied) return null;
+      return {
+        email: normalizeEmail(email),
+        reason: denied.reason,
+        deniedAt: denied.deniedAt,
+      };
+    },
+
+    async upsertDeniedEmail(email, reason) {
+      deniedByEmail.set(normalizeEmail(email), {
+        reason,
+        deniedAt: new Date().toISOString(),
+      });
+    },
+
+    async clearDeniedEmail(email) {
+      deniedByEmail.delete(normalizeEmail(email));
+    },
+
+    async setUserStatusByEmail(email, status) {
+      const normalized = normalizeEmail(email);
+      const user = usersByEmail.get(normalized);
+      if (!user) return null;
+      user.status = status;
+      return cloneUser(user);
+    },
+
+    async deleteSessionsByUserId(userId) {
+      const target = Number(userId);
+      for (const [tokenHash, session] of sessionsByTokenHash.entries()) {
+        if (Number(session.userId) === target) {
+          sessionsByTokenHash.delete(tokenHash);
+        }
+      }
     },
   };
 }
@@ -1074,6 +1252,40 @@ function extractCsrfToken(request, payload) {
   return String(token || '').trim();
 }
 
+function extractAdminKey(request, payload, url) {
+  const fromHeader = request.headers.get('X-Admin-Key');
+  const fromPayload = payload?.adminKey;
+  const fromQuery = url.searchParams.get('admin_key') || url.searchParams.get('key');
+  return String(fromHeader || fromPayload || fromQuery || '').trim();
+}
+
+function validateAdminAccess(request, env, payload, url) {
+  const configured = String(env.ADMIN_KEY || '').trim();
+  if (!configured) {
+    return { ok: false, status: 503, error: 'Admin access is not configured.' };
+  }
+
+  const provided = extractAdminKey(request, payload, url);
+  if (!provided) {
+    return { ok: false, status: 401, error: 'Admin authentication required.' };
+  }
+
+  if (!timingSafeEqual(provided, configured)) {
+    return { ok: false, status: 403, error: 'Invalid admin credentials.' };
+  }
+
+  return { ok: true };
+}
+
+function toPublicUser(user) {
+  if (!user) return null;
+  return {
+    id: Number(user.id),
+    email: user.email,
+    status: user.status,
+  };
+}
+
 async function handleAuthMe(request, env, store, url, nowSeconds) {
   await store.deleteExpiredSessions(nowSeconds);
 
@@ -1154,6 +1366,16 @@ async function handleAuthRegister(request, env, store, url, nowSeconds) {
 
   if (!isValidEmail(email)) {
     return jsonResponse(request, env, { ok: false, error: 'Please enter a valid email address.' }, 400);
+  }
+
+  const denied = await store.getDeniedEmail(email);
+  if (denied) {
+    return jsonResponse(
+      request,
+      env,
+      { ok: false, error: 'This account has been denied by an administrator.' },
+      403
+    );
   }
 
   if (!isStrongPassword(password)) {
@@ -1253,6 +1475,16 @@ async function handleAuthLogin(request, env, store, url, nowSeconds) {
   const password = String(body.data.password || '');
   if (!isValidEmail(email) || !password) {
     return jsonResponse(request, env, { ok: false, error: 'Invalid email or password.' }, 401);
+  }
+
+  const denied = await store.getDeniedEmail(email);
+  if (denied) {
+    return jsonResponse(
+      request,
+      env,
+      { ok: false, error: 'Your account has been denied by an administrator.' },
+      403
+    );
   }
 
   const user = await store.getUserByEmail(email);
@@ -1480,6 +1712,103 @@ async function handleMatch(request, env, store, url, nowSeconds) {
   return jsonResponse(request, env, aiResult.body, aiResult.status);
 }
 
+async function handleAdminReview(request, env, store, url) {
+  if (request.method !== 'GET') {
+    return methodNotAllowed(request, env, ['GET']);
+  }
+
+  const access = validateAdminAccess(request, env, {}, url);
+  if (!access.ok) {
+    return jsonResponse(request, env, { ok: false, error: access.error }, access.status);
+  }
+
+  const pendingUsers = await store.listPendingUsers(ADMIN_REVIEW_LIMIT);
+  const deniedUsers = await store.listDeniedUsers(ADMIN_REVIEW_LIMIT);
+  return jsonResponse(request, env, {
+    ok: true,
+    pendingUsers,
+    deniedUsers,
+  });
+}
+
+async function handleAdminApprove(request, env, store, url) {
+  if (request.method !== 'POST') {
+    return methodNotAllowed(request, env, ['POST']);
+  }
+
+  const body = await readJsonBody(request);
+  if (!body.ok) {
+    return jsonResponse(request, env, { ok: false, error: body.error }, body.status);
+  }
+
+  const access = validateAdminAccess(request, env, body.data, url);
+  if (!access.ok) {
+    return jsonResponse(request, env, { ok: false, error: access.error }, access.status);
+  }
+
+  const email = normalizeEmail(body.data.email);
+  if (!isValidEmail(email)) {
+    return jsonResponse(request, env, { ok: false, error: 'Please provide a valid email.' }, 400);
+  }
+
+  const user = await store.getUserByEmail(email);
+  if (!user) {
+    return jsonResponse(request, env, { ok: false, error: 'User not found.' }, 404);
+  }
+
+  const updated = await store.setUserStatusByEmail(email, 'approved');
+  await store.clearDeniedEmail(email);
+  await store.clearLoginLockout(email);
+
+  return jsonResponse(request, env, {
+    ok: true,
+    message: 'User approved.',
+    user: toPublicUser(updated),
+  });
+}
+
+async function handleAdminDeny(request, env, store, url) {
+  if (request.method !== 'POST') {
+    return methodNotAllowed(request, env, ['POST']);
+  }
+
+  const body = await readJsonBody(request);
+  if (!body.ok) {
+    return jsonResponse(request, env, { ok: false, error: body.error }, body.status);
+  }
+
+  const access = validateAdminAccess(request, env, body.data, url);
+  if (!access.ok) {
+    return jsonResponse(request, env, { ok: false, error: access.error }, access.status);
+  }
+
+  const email = normalizeEmail(body.data.email);
+  if (!isValidEmail(email)) {
+    return jsonResponse(request, env, { ok: false, error: 'Please provide a valid email.' }, 400);
+  }
+
+  const reason = normalizeAdminReason(body.data.reason);
+  const user = await store.getUserByEmail(email);
+
+  await store.upsertDeniedEmail(email, reason);
+  await store.clearLoginLockout(email);
+
+  if (user) {
+    await store.setUserStatusByEmail(email, 'pending');
+    await store.deleteSessionsByUserId(Number(user.id));
+  }
+
+  return jsonResponse(request, env, {
+    ok: true,
+    message: 'User denied.',
+    denied: {
+      email,
+      reason,
+      userExists: Boolean(user),
+    },
+  });
+}
+
 export function createApiHandler(options = {}) {
   const now = typeof options.now === 'function' ? options.now : () => Date.now();
 
@@ -1533,6 +1862,18 @@ export function createApiHandler(options = {}) {
         }
 
         const nowSeconds = Math.floor(now() / 1000);
+
+        if (path === '/api/admin/review') {
+          return handleAdminReview(request, env, store, url, nowSeconds);
+        }
+
+        if (path === '/api/admin/approve') {
+          return handleAdminApprove(request, env, store, url, nowSeconds);
+        }
+
+        if (path === '/api/admin/deny') {
+          return handleAdminDeny(request, env, store, url, nowSeconds);
+        }
 
         if (path === '/api/auth/me') {
           return handleAuthMe(request, env, store, url, nowSeconds);
