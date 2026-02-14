@@ -2,6 +2,7 @@ node_modules/
 .dev.vars
 .wrangler/
 dist/
+.admin-link-token.local
 .env
 .env.*
 !.env.example
