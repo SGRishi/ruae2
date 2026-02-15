@@ -8,6 +8,7 @@ Do NOT claim completion unless ALL of the following are true:
 1) `npm run qa` exits with code 0 (green).
 2) After your final changes, re-run `npm run qa` once more and confirm it is still green.
 3) No secrets or env files are added to git (see "Secrets & safety").
+4) All tests including `CI / quality`, `QA / qa`, and `Cloudflare Workers Builds` GitHub checks are green.
 
 If `npm run qa` fails, you must fix the issue and re-run until it passes.
 
@@ -85,4 +86,3 @@ If you cannot run commands in the environment, you must say so explicitly and pr
 - Do not claim "all tests pass" unless `npm run qa` actually ran and exited 0.
 - Do not use `qa:watch` as a finishing condition.
 - Do not remove coverage, assertions, or security checks just to green the pipeline.
-

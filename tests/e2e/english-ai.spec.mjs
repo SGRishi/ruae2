@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 
-test('R-AI-01: approved user can check English AI marking without login redirect', async ({ page, context }) => {
+test('R-AI-01: approved user can check English AI marking without login redirect', async ({
+  page,
+  context,
+}) => {
   await context.setExtraHTTPHeaders({ 'x-test-auth': 'approved' });
 
   await page.goto('/ruae/', { waitUntil: 'domcontentloaded' });
@@ -14,7 +17,9 @@ test('R-AI-01: approved user can check English AI marking without login redirect
 
   await question
     .locator('textarea')
-    .fill('The passage presents Central Valley as productive and fertile with extensive orchards and farming.');
+    .fill(
+      'The passage presents Central Valley as productive and fertile with extensive orchards and farming.'
+    );
 
   const matchResPromise = page.waitForResponse((res) => {
     return res.url().includes('/api/match') && res.request().method() === 'POST';
@@ -40,4 +45,3 @@ test('R-AI-01: approved user can check English AI marking without login redirect
   await expect(aiResult).toContainText(/Score:\s*\d+\s*\/\s*\d+/);
   await expect(aiResult).toContainText(/QA stub feedback/i);
 });
-
