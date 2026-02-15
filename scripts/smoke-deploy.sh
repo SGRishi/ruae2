@@ -30,9 +30,16 @@ printf 'Smoke target: BASE_URL=%s API_BASE=%s\n' "${BASE_URL}" "${API_BASE}"
 
 home_status="$(curl -sS -o "${home_body}" -w '%{http_code}' "${BASE_URL}/")"
 require_status "${home_status}" "200" "homepage"
-if ! rg -qi "ruae|higher english" "${home_body}"; then
-  printf 'FAIL: homepage content check did not find expected RUAE text\n' >&2
-  exit 1
+if command -v rg >/dev/null 2>&1; then
+  if ! rg -qi "ruae|higher english" "${home_body}"; then
+    printf 'FAIL: homepage content check did not find expected RUAE text\n' >&2
+    exit 1
+  fi
+else
+  if ! grep -Eqi "ruae|higher english" "${home_body}"; then
+    printf 'FAIL: homepage content check did not find expected RUAE text\n' >&2
+    exit 1
+  fi
 fi
 printf 'PASS: homepage reachable with expected content\n'
 
