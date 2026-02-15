@@ -181,4 +181,90 @@ test('admin can review, approve, and deny accounts', async () => {
     json: { username: 'pendinguser', password: 'StrongPassword123' },
   });
   assert.equal(deniedRegister.response.status, 403);
+
+  const clearDenied = await apiCall(handler, env, jar, '/api/admin/denied/clear', {
+    method: 'POST',
+    headers: { 'X-Admin-Token': env.ADMIN_LINK_TOKEN },
+    json: {},
+  });
+  assert.equal(clearDenied.response.status, 200);
+  assert.equal(clearDenied.data.ok, true);
+
+  const reviewAfterClear = await apiCall(handler, env, jar, '/api/admin/review', {
+    headers: { 'X-Admin-Token': env.ADMIN_LINK_TOKEN },
+  });
+  assert.equal(reviewAfterClear.response.status, 200);
+  assert.equal(Array.isArray(reviewAfterClear.data.deniedUsers), true);
+  assert.equal(reviewAfterClear.data.deniedUsers.length, 0);
+  assert.equal(Array.isArray(reviewAfterClear.data.pendingUsers), true);
+  assert.equal(
+    reviewAfterClear.data.pendingUsers.some((user) => user.username === 'pendinguser'),
+    false
+  );
+
+  const loginAfterClear = await apiCall(handler, env, jar, '/api/auth/login', {
+    method: 'POST',
+    headers: { 'X-CSRF-Token': csrfToken },
+    json: { username: 'pendinguser', password: 'StrongPassword123' },
+  });
+  assert.equal(loginAfterClear.response.status, 401);
+
+  const registerAfterClear = await apiCall(handler, env, jar, '/api/auth/register', {
+    method: 'POST',
+    headers: { 'X-CSRF-Token': csrfToken },
+    json: { username: 'pendinguser', password: 'StrongPassword123' },
+  });
+  assert.equal(registerAfterClear.response.status, 201);
+  assert.equal(registerAfterClear.data.user.status, 'pending');
+});
+
+test('admin can deny all pending accounts', async () => {
+  const handler = createApiHandler();
+  const env = {
+    SESSION_SECRET: 'test-session-secret',
+    PASSWORD_PEPPER: 'test-pepper',
+    ALLOWED_ORIGINS: 'https://rishisubjects.co.uk',
+    REQUIRE_MANUAL_APPROVAL: 'true',
+    ADMIN_LINK_TOKEN: 'test-admin-token-1234567890',
+    AUTH_STORE: createMemoryStore(),
+  };
+
+  const jar = new Map();
+  const me = await apiCall(handler, env, jar, '/api/auth/me');
+  assert.equal(me.response.status, 200);
+  const csrfToken = me.data.csrfToken;
+
+  const names = ['alice', 'bob', 'charlie'];
+  for (const username of names) {
+    const register = await apiCall(handler, env, jar, '/api/auth/register', {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': csrfToken },
+      json: { username, password: 'StrongPassword123' },
+    });
+    assert.equal(register.response.status, 201);
+    assert.equal(register.data.user.status, 'pending');
+  }
+
+  const denyAll = await apiCall(handler, env, jar, '/api/admin/pending/deny-all', {
+    method: 'POST',
+    headers: { 'X-Admin-Token': env.ADMIN_LINK_TOKEN },
+    json: { reason: 'Spam signups.' },
+  });
+  assert.equal(denyAll.response.status, 200);
+  assert.equal(denyAll.data.ok, true);
+  assert.equal(denyAll.data.deniedCount, 3);
+
+  const review = await apiCall(handler, env, jar, '/api/admin/review', {
+    headers: { 'X-Admin-Token': env.ADMIN_LINK_TOKEN },
+  });
+  assert.equal(review.response.status, 200);
+  assert.equal(review.data.pendingUsers.length, 0);
+  assert.equal(review.data.deniedUsers.length, 3);
+
+  const deniedLogin = await apiCall(handler, env, jar, '/api/auth/login', {
+    method: 'POST',
+    headers: { 'X-CSRF-Token': csrfToken },
+    json: { username: 'alice', password: 'StrongPassword123' },
+  });
+  assert.equal(deniedLogin.response.status, 403);
 });

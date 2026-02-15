@@ -9,6 +9,10 @@ binding = "DB"
 database_name = "ruae-members-db"
 database_id = "6f9e29c4-1a9f-4927-9e63-c70cb1a653e7"
 
+[[kv_namespaces]]
+binding = "MATHS_ASSETS"
+id = "96c3a771fd694f7db62082d37013d8e8"
+
 [[routes]]
 pattern = "api.rishisubjects.co.uk"
 custom_domain = true
@@ -18,3 +22,19 @@ ALLOWED_ORIGINS = "https://rishisubjects.co.uk,https://www.rishisubjects.co.uk,h
 PAGES_PROJECT_NAME = "rishisubjects"
 REQUIRE_MANUAL_APPROVAL = "true"
 ALLOW_LOCALHOST_ORIGINS = "false"
+ALLOW_TEST_AUTH = "false"
+
+[env.test]
+d1_databases = [
+  { binding = "DB", database_name = "ruae-members-db", database_id = "6f9e29c4-1a9f-4927-9e63-c70cb1a653e7" }
+]
+kv_namespaces = [
+  { binding = "MATHS_ASSETS", id = "96c3a771fd694f7db62082d37013d8e8" }
+]
+
+[env.test.vars]
+ALLOWED_ORIGINS = "https://rishisubjects.co.uk,https://www.rishisubjects.co.uk,https://rishisubjects.pages.dev"
+ALLOW_LOCALHOST_ORIGINS = "true"
+ALLOW_TEST_AUTH = "true"
+PAGES_PROJECT_NAME = "rishisubjects"
+REQUIRE_MANUAL_APPROVAL = "true"

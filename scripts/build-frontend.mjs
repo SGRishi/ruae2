@@ -38,7 +38,12 @@ async function run() {
   await cp(publicDir, distDir, { recursive: true });
 
   const apiBase = resolveApiBase();
-  const runtimeConfig = `window.__APP_CONFIG__ = window.__APP_CONFIG__ || {};\nwindow.__APP_CONFIG__.API_BASE = ${JSON.stringify(apiBase)};\n`;
+  // Only set API_BASE when explicitly configured. When omitted, the auth client
+  // falls back to its production default (https://api.rishisubjects.co.uk) on
+  // non-local hosts.
+  const runtimeConfig = `window.__APP_CONFIG__ = window.__APP_CONFIG__ || {};\n${
+    apiBase ? `window.__APP_CONFIG__.API_BASE = ${JSON.stringify(apiBase)};\n` : ''
+  }`;
   await writeFile(path.join(distDir, 'runtime-config.js'), runtimeConfig, 'utf8');
 
   process.stdout.write(`Built frontend to dist/ with API_BASE=${apiBase || '(same origin)'}\n`);

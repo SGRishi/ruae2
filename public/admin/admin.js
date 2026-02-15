@@ -6,6 +6,8 @@
   const pendingBody = document.getElementById('pendingBody');
   const approvedBody = document.getElementById('approvedBody');
   const deniedBody = document.getElementById('deniedBody');
+  const denyAllBtn = document.getElementById('denyAllBtn');
+  const purgeDeniedBtn = document.getElementById('purgeDeniedBtn');
 
   let adminToken = '';
 
@@ -14,13 +16,54 @@
     statusEl.className = `status ${level || 'info'}`;
   }
 
-  function toIsoOrDash(value) {
-    if (!value) return '—';
-    try {
-      return new Date(value).toISOString();
-    } catch {
-      return String(value);
+  function parseTimestamp(value) {
+    if (!value) return null;
+    if (value instanceof Date) {
+      return Number.isNaN(value.getTime()) ? null : value;
     }
+
+    if (typeof value === 'number') {
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    const raw = String(value).trim();
+    if (!raw) return null;
+
+    // D1/SQLite CURRENT_TIMESTAMP is "YYYY-MM-DD HH:MM:SS" in UTC.
+    const sqliteMatch = raw.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(\.\d+)?$/);
+    if (sqliteMatch) {
+      const iso = `${sqliteMatch[1]}T${sqliteMatch[2]}${sqliteMatch[3] || ''}Z`;
+      const date = new Date(iso);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    const dateOnlyMatch = raw.match(/^(\d{4}-\d{2}-\d{2})$/);
+    if (dateOnlyMatch) {
+      const date = new Date(`${dateOnlyMatch[1]}T00:00:00Z`);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    const date = new Date(raw);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function toAdminDateOrDash(value) {
+    if (!value) return '—';
+    const date = parseTimestamp(value);
+    if (!date) return String(value);
+
+    const datePart = new Intl.DateTimeFormat('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(date);
+    return datePart;
+  }
+
+  function toSortMs(value) {
+    const date = parseTimestamp(value);
+    return date ? date.getTime() : 0;
   }
 
   function readTokenFromLocation() {
@@ -50,11 +93,8 @@
   }
 
   async function adminRequest(path, options = {}) {
-    if (!api || !api.getApiBase()) {
-      throw new Error('API client is unavailable.');
-    }
-
-    const response = await fetch(`${api.getApiBase()}${path}`, {
+    const apiBase = api && typeof api.getApiBase === 'function' ? String(api.getApiBase() || '') : '';
+    const response = await fetch(`${apiBase}${path}`, {
       method: options.method || 'GET',
       headers: options.headers || adminHeaders(),
       body: options.body,
@@ -107,6 +147,28 @@
     }
   }
 
+  async function denyAllPending(reason) {
+    const { response, data } = await adminRequest('/api/admin/pending/deny-all', {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to deny all pending users.');
+    }
+    return data;
+  }
+
+  async function clearDeniedList() {
+    const { response, data } = await adminRequest('/api/admin/denied/clear', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to delete denied list.');
+    }
+    return data;
+  }
+
   function buildPendingRow(user, reload) {
     const row = document.createElement('tr');
 
@@ -120,7 +182,7 @@
     row.appendChild(status);
 
     const created = document.createElement('td');
-    created.textContent = toIsoOrDash(user.createdAt);
+    created.textContent = toAdminDateOrDash(user.createdAt);
     row.appendChild(created);
 
     const actions = document.createElement('td');
@@ -176,7 +238,7 @@
     row.appendChild(status);
 
     const approvedAt = document.createElement('td');
-    approvedAt.textContent = toIsoOrDash(user.approvedAt);
+    approvedAt.textContent = toAdminDateOrDash(user.approvedAt);
     row.appendChild(approvedAt);
 
     const actions = document.createElement('td');
@@ -216,7 +278,7 @@
     row.appendChild(reason);
 
     const deniedAt = document.createElement('td');
-    deniedAt.textContent = toIsoOrDash(user.deniedAt);
+    deniedAt.textContent = toAdminDateOrDash(user.deniedAt);
     row.appendChild(deniedAt);
 
     const actions = document.createElement('td');
@@ -261,6 +323,38 @@
     const approvedUsers = Array.isArray(data.approvedUsers) ? data.approvedUsers : [];
     const deniedUsers = Array.isArray(data.deniedUsers) ? data.deniedUsers : [];
 
+    pendingUsers.sort((a, b) => {
+      return (
+        toSortMs(b.createdAt) - toSortMs(a.createdAt)
+        || Number(b.id || 0) - Number(a.id || 0)
+        || userKey(b).localeCompare(userKey(a))
+      );
+    });
+
+    approvedUsers.sort((a, b) => {
+      return (
+        toSortMs(b.approvedAt) - toSortMs(a.approvedAt)
+        || Number(b.id || 0) - Number(a.id || 0)
+        || userKey(b).localeCompare(userKey(a))
+      );
+    });
+
+    deniedUsers.sort((a, b) => {
+      return (
+        toSortMs(b.deniedAt) - toSortMs(a.deniedAt)
+        || Number(b.userId || 0) - Number(a.userId || 0)
+        || userKey(b).localeCompare(userKey(a))
+      );
+    });
+
+    if (denyAllBtn) {
+      denyAllBtn.disabled = !adminToken || pendingUsers.length === 0;
+    }
+
+    if (purgeDeniedBtn) {
+      purgeDeniedBtn.disabled = !adminToken || deniedUsers.length === 0;
+    }
+
     if (!pendingUsers.length) {
       emptyTable(pendingBody, 'No pending users right now.', 4);
     } else {
@@ -286,6 +380,53 @@
     }
   }
 
+  if (denyAllBtn) {
+    denyAllBtn.addEventListener('click', async function () {
+      if (!adminToken) {
+        setStatus('Admin link token missing. Open /admin/#token=YOUR_LONG_ADMIN_TOKEN', 'error');
+        return;
+      }
+
+      if (!window.confirm('Deny ALL pending users?')) {
+        return;
+      }
+
+      const reason = window.prompt('Reason for denial (optional):', 'Denied by administrator.') || '';
+
+      try {
+        setStatus('Denying all pending users...', 'info');
+        await denyAllPending(reason);
+        await loadUsers();
+        setStatus('All pending users denied.', 'ok');
+      } catch (error) {
+        setStatus(error.message || 'Deny all failed.', 'error');
+      }
+    });
+  }
+
+  if (purgeDeniedBtn) {
+    purgeDeniedBtn.addEventListener('click', async function () {
+      if (!adminToken) {
+        setStatus('Admin link token missing. Open /admin/#token=YOUR_LONG_ADMIN_TOKEN', 'error');
+        return;
+      }
+
+      const confirmed = window.confirm(
+        'Delete ALL denied entries and any matching user accounts?'
+      );
+      if (!confirmed) return;
+
+      try {
+        setStatus('Deleting denied list...', 'info');
+        await clearDeniedList();
+        await loadUsers();
+        setStatus('Denied list deleted.', 'ok');
+      } catch (error) {
+        setStatus(error.message || 'Delete failed.', 'error');
+      }
+    });
+  }
+
   refreshBtn.addEventListener('click', async function () {
     try {
       setStatus('Refreshing review data...', 'info');
@@ -305,6 +446,8 @@
   adminToken = readTokenFromLocation();
   apiBaseEl.textContent = api.getApiBase() || 'same origin';
   refreshBtn.disabled = !adminToken;
+  if (denyAllBtn) denyAllBtn.disabled = true;
+  if (purgeDeniedBtn) purgeDeniedBtn.disabled = true;
 
   if (!adminToken) {
     setStatus('Admin link token missing. Open /admin/#token=YOUR_LONG_ADMIN_TOKEN', 'error');

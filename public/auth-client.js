@@ -14,8 +14,11 @@
   }
 
   function resolveApiBase() {
-    const fromConfig = normalizeBaseUrl(window.__APP_CONFIG__ && window.__APP_CONFIG__.API_BASE);
-    if (fromConfig) return fromConfig;
+    const hasConfig = Boolean(window.__APP_CONFIG__ && Object.prototype.hasOwnProperty.call(window.__APP_CONFIG__, 'API_BASE'));
+    if (hasConfig) {
+      // Allow explicit empty string to mean "same origin" (useful with Pages /api proxying).
+      return normalizeBaseUrl(window.__APP_CONFIG__.API_BASE);
+    }
     return buildDefaultApiBase();
   }
 

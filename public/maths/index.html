@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <title>SQA Maths Past Paper Question Bank</title>
+    <link rel="stylesheet" href="/maths/maths.css" />
+  </head>
+  <body>
+    <main id="app" class="app">
+      <header class="topbar">
+        <a class="home-link" href="/">Home</a>
+        <div class="topbar-controls">
+          <label class="control">
+            <span class="label">Year</span>
+            <select id="yearSelect" aria-label="Select a year" data-testid="maths-year-select"></select>
+          </label>
+          <label class="control">
+            <span class="label">Paper</span>
+            <select id="paperSelect" aria-label="Select a paper" data-testid="maths-paper-select">
+              <option value="all">All papers</option>
+              <option value="1">Paper 1 (Non-Calculator)</option>
+              <option value="2">Paper 2 (Calculator)</option>
+            </select>
+          </label>
+          <label class="control grow">
+            <span class="label">Search</span>
+            <input
+              id="searchInput"
+              type="search"
+              aria-label="Search questions"
+              placeholder="Search topics, keywords, question text"
+              autocomplete="off"
+              data-testid="maths-search-input"
+            />
+          </label>
+          <button id="datasheetBtn" type="button" class="secondary" data-testid="maths-datasheet-btn">Datasheet (D)</button>
+          <a id="diagnosticsLink" class="link" href="/maths/diagnostics" data-testid="maths-diagnostics-link">Diagnostics</a>
+        </div>
+
+        <div class="session">
+          <span id="sessionEmail" class="session-email"></span>
+          <button id="logoutBtn" type="button" data-testid="maths-logout-btn">Logout</button>
+        </div>
+      </header>
+
+      <section class="content">
+        <div id="status" class="status" role="status" aria-live="polite" data-testid="maths-status"></div>
+
+        <div id="route" class="route" data-testid="maths-route"></div>
+      </section>
+
+      <footer class="footer">contact: rishi@rishisubjects.co.uk for suggestions.</footer>
+    </main>
+
+    <div id="modalRoot" data-testid="maths-modal-root"></div>
+
+    <script src="/runtime-config.js?v=20260214"></script>
+    <script src="/auth-client.js?v=20260214"></script>
+    <script type="module" src="/maths/maths.js?v=20260214"></script>
+  </body>
+</html>

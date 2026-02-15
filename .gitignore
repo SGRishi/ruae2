@@ -6,3 +6,17 @@ dist/
 .env
 .env.*
 !.env.example
+data/
+tmp/
+
+# Never commit dev vars / test vars
+.dev.vars.*
+.env.*
+.venv/
+test-results/
+
+# Python artifacts
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/

@@ -18,8 +18,11 @@ Production deployment targets:
 
 - `public/`: frontend pages and assets
 - `public/admin/`: admin approval UI (`/admin/`)
+- `public/ruae/`: RUAE practice UI (`/ruae/`)
+- `public/maths/`: SQA Maths past-paper question bank UI (`/maths/`)
 - `worker.js`: Worker API with auth, CSRF, rate limiting, RUAE match endpoint
 - `d1/schema.sql`: D1 schema
+- `maths/`: maths ingestion + segmentation CLI pipeline (local SQLite + publish to Cloudflare)
 - `scripts/build-frontend.mjs`: frontend build script
 - `scripts/smoke-deploy.sh`: deployed smoke test
 - `tests/`: unit, integration, and e2e tests
@@ -97,6 +100,46 @@ Auth identifier:
 3. Admin approves or denies users.
 4. Approved users can log in; denied users are blocked from login and registration.
 
+## Apps / Routes
+
+- `/ruae/`: existing RUAE practice site (unchanged)
+- `/maths/`: SQA Maths Past Paper Question Bank (protected by the same auth + approval rules)
+- `/api/maths/*`: backend API for the Maths question bank (approved users only)
+
+## Maths Pipeline (Ingest + Segment + Publish)
+
+The Maths question bank is powered by a local pipeline that:
+
+- indexes PDFs into a local SQLite DB (same schema as D1)
+- segments questions + marking-instruction blocks
+- renders crop PNGs
+- publishes rows to D1 + assets to KV (`MATHS_ASSETS`)
+
+Python env (one-time):
+
+```bash
+python3 -m venv .venv
+./.venv/bin/pip install -r maths/requirements.txt
+```
+
+Ingest PDFs (idempotent):
+
+```bash
+./.venv/bin/python -m maths ingest <folder>
+```
+
+Segment + generate crops:
+
+```bash
+./.venv/bin/python -m maths segment
+```
+
+Publish to production (uploads assets + upserts D1 rows):
+
+```bash
+./.venv/bin/python -m maths publish
+```
+
 ## Local Development
 
 1. Run Worker locally:
@@ -133,6 +176,20 @@ npm run build
 ```
 
 CI runs these steps on push/PR via `.github/workflows/ci.yml`.
+
+## Running QA
+
+`npm run qa` is the single command that gates Maths QA. It runs:
+
+- `npm run test:unit` (Node unit + integration tests under `tests/`)
+- `npm run test:smoke` (seeded fixture smoke checks for `/api/maths/*` + crop rendering)
+- `npm run test:e2e` (Playwright UI tests under `qa/e2e/`)
+
+Playwright browser install (one-time on a machine/CI image):
+
+```bash
+npx playwright install --with-deps
+```
 
 ## Deployment
 

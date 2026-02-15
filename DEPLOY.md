@@ -25,13 +25,23 @@ npx wrangler secret put ADMIN_LINK_TOKEN
 npx wrangler secret put OPENAI_API_KEY
 ```
 
-4. Deploy Worker:
+4. (Maths) Ensure KV storage exists for PDF + crop assets:
+
+- Create a KV namespace (one-time):
+
+```bash
+npx wrangler kv namespace create MATHS_ASSETS
+```
+
+- Add the resulting `[[kv_namespaces]]` binding to `wrangler.toml` as `binding = "MATHS_ASSETS"`.
+
+5. Deploy Worker:
 
 ```bash
 npx wrangler deploy
 ```
 
-5. Confirm endpoints:
+6. Confirm endpoints:
 
 ```bash
 curl -i https://<your-worker>.workers.dev/api/health
@@ -59,6 +69,30 @@ CLI alternative:
 ```bash
 npm run build
 npx wrangler pages deploy dist --project-name rishisubjects
+```
+
+## 2b) Publish Maths Data (Optional but Required for /maths Content)
+
+The `/maths/` UI reads from D1 + KV. To populate it:
+
+1. Install Python deps:
+
+```bash
+python3 -m venv .venv
+./.venv/bin/pip install -r maths/requirements.txt
+```
+
+2. Ingest + segment PDFs locally (idempotent):
+
+```bash
+./.venv/bin/python -m maths ingest <folder>
+./.venv/bin/python -m maths segment
+```
+
+3. Publish to production:
+
+```bash
+./.venv/bin/python -m maths publish
 ```
 
 ## 3) Configure Domains

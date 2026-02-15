@@ -17,11 +17,13 @@ function createJsonResponse(payload, status = 200) {
   });
 }
 
-function loadAuthClient({ hostname, appConfigApiBase = '', fetchImpl }) {
+function loadAuthClient({ hostname, appConfigApiBase, fetchImpl }) {
   const window = {
     location: { hostname },
-    __APP_CONFIG__: { API_BASE: appConfigApiBase },
   };
+  if (appConfigApiBase !== undefined) {
+    window.__APP_CONFIG__ = { API_BASE: appConfigApiBase };
+  }
 
   const context = vm.createContext({
     window,
@@ -38,19 +40,31 @@ function loadAuthClient({ hostname, appConfigApiBase = '', fetchImpl }) {
   return window.RuaeApi;
 }
 
-test('auth client falls back to canonical API base on production hosts', async () => {
+test('auth client falls back to canonical API base on production hosts when runtime config is missing', async () => {
   const api = loadAuthClient({
     hostname: 'www.rishisubjects.co.uk',
+    appConfigApiBase: undefined,
     fetchImpl: async () => createJsonResponse({ ok: true }),
   });
 
   assert.equal(api.getApiBase(), 'https://api.rishisubjects.co.uk');
 });
 
+test('auth client uses same-origin when API_BASE is explicitly configured blank', async () => {
+  const api = loadAuthClient({
+    hostname: 'www.rishisubjects.co.uk',
+    appConfigApiBase: '',
+    fetchImpl: async () => createJsonResponse({ ok: true }),
+  });
+
+  assert.equal(api.getApiBase(), '');
+});
+
 test('csrf request bootstraps token from /api/auth/me when missing', async () => {
   const calls = [];
   const api = loadAuthClient({
     hostname: 'rishisubjects.co.uk',
+    appConfigApiBase: '',
     fetchImpl: async (url, init = {}) => {
       calls.push({ url: String(url), init });
       if (String(url).endsWith('/api/auth/me')) {
@@ -68,8 +82,8 @@ test('csrf request bootstraps token from /api/auth/me when missing', async () =>
 
   assert.equal(response.status, 200);
   assert.equal(calls.length, 2);
-  assert.equal(calls[0].url, 'https://api.rishisubjects.co.uk/api/auth/me');
-  assert.equal(calls[1].url, 'https://api.rishisubjects.co.uk/api/auth/login');
+  assert.equal(calls[0].url, '/api/auth/me');
+  assert.equal(calls[1].url, '/api/auth/login');
   const csrfHeader = new Headers(calls[1].init.headers).get('x-csrf-token');
   assert.equal(csrfHeader, 'token-from-me');
 });
@@ -78,6 +92,7 @@ test('csrf failure triggers one refresh + retry', async () => {
   const calls = [];
   const api = loadAuthClient({
     hostname: 'rishisubjects.co.uk',
+    appConfigApiBase: '',
     fetchImpl: async (url, init = {}) => {
       calls.push({ url: String(url), init });
       const idx = calls.length;
@@ -101,8 +116,8 @@ test('csrf failure triggers one refresh + retry', async () => {
 
   assert.equal(response.status, 200);
   assert.equal(calls.length, 3);
-  assert.equal(calls[0].url, 'https://api.rishisubjects.co.uk/api/auth/logout');
-  assert.equal(calls[1].url, 'https://api.rishisubjects.co.uk/api/auth/me');
-  assert.equal(calls[2].url, 'https://api.rishisubjects.co.uk/api/auth/logout');
+  assert.equal(calls[0].url, '/api/auth/logout');
+  assert.equal(calls[1].url, '/api/auth/me');
+  assert.equal(calls[2].url, '/api/auth/logout');
   assert.equal(new Headers(calls[2].init.headers).get('x-csrf-token'), 'refreshed-token');
 });

@@ -248,8 +248,12 @@ function addCorsHeaders(request, env, headers) {
   if (!corsOrigin) return;
   headers.set('Access-Control-Allow-Origin', corsOrigin);
   headers.set('Access-Control-Allow-Credentials', 'true');
-  headers.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  headers.set('Access-Control-Allow-Headers', 'Content-Type, X-CSRF-Token, X-Admin-Token, X-Admin-Key');
+  headers.set('Access-Control-Allow-Methods', 'GET,HEAD,POST,OPTIONS');
+  headers.set(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Range, If-Modified-Since, If-None-Match, If-Range, X-CSRF-Token, X-Admin-Token, X-Admin-Key'
+  );
+  headers.set('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges, Content-Type, ETag');
   headers.set('Vary', appendVary(headers.get('Vary'), 'Origin'));
 }
 
@@ -629,7 +633,7 @@ function createD1Store(db) {
          FROM users
          WHERE status = 'pending'
            AND email NOT IN (SELECT email FROM denied_users)
-         ORDER BY created_at ASC
+         ORDER BY created_at DESC
          LIMIT ?1`
       )
         .bind(safeLimit)
@@ -722,6 +726,37 @@ function createD1Store(db) {
       await db.prepare('DELETE FROM denied_users WHERE email = ?1')
         .bind(email)
         .run();
+    },
+
+    async clearAllDeniedEmails() {
+      const result = await db.prepare('DELETE FROM denied_users').run();
+      return Number(result.meta?.changes || 0);
+    },
+
+    async purgeDeniedList() {
+      // Delete any user accounts tied to the denied list so a purge doesn't
+      // "move" users back into pending review.
+      await db.prepare(
+        `DELETE FROM sessions
+         WHERE user_id IN (
+           SELECT id FROM users WHERE email IN (SELECT email FROM denied_users)
+         )`
+      ).run();
+      await db.prepare(
+        `DELETE FROM login_lockouts
+         WHERE email IN (SELECT email FROM denied_users)`
+      ).run();
+
+      const usersResult = await db.prepare(
+        `DELETE FROM users
+         WHERE email IN (SELECT email FROM denied_users)`
+      ).run();
+      const deniedResult = await db.prepare('DELETE FROM denied_users').run();
+
+      return {
+        deletedUsers: Number(usersResult.meta?.changes || 0),
+        deletedDenied: Number(deniedResult.meta?.changes || 0),
+      };
     },
 
     async setUserStatusByEmail(email, status) {
@@ -888,7 +923,7 @@ export function createMemoryStore(seed = {}) {
       const safeLimit = Math.max(1, Math.min(1000, Number(limit) || ADMIN_REVIEW_LIMIT));
       const pending = Array.from(usersById.values())
         .filter((user) => user.status === 'pending' && !deniedByEmail.has(user.email))
-        .sort((a, b) => Number(a.id) - Number(b.id))
+        .sort((a, b) => Number(b.id) - Number(a.id))
         .slice(0, safeLimit)
         .map((user) => ({
           id: Number(user.id),
@@ -950,6 +985,36 @@ export function createMemoryStore(seed = {}) {
       deniedByEmail.delete(normalizeEmail(email));
     },
 
+    async clearAllDeniedEmails() {
+      const removed = deniedByEmail.size;
+      deniedByEmail.clear();
+      return removed;
+    },
+
+    async purgeDeniedList() {
+      const deniedEmails = Array.from(deniedByEmail.keys());
+      let deletedUsers = 0;
+
+      for (const email of deniedEmails) {
+        const user = usersByEmail.get(email) || null;
+        if (user) {
+          usersById.delete(Number(user.id));
+          usersByEmail.delete(email);
+          await this.deleteSessionsByUserId(Number(user.id));
+          deletedUsers += 1;
+        }
+        lockouts.delete(email);
+      }
+
+      const deletedDenied = deniedByEmail.size;
+      deniedByEmail.clear();
+
+      return {
+        deletedUsers,
+        deletedDenied,
+      };
+    },
+
     async setUserStatusByEmail(email, status) {
       const normalized = normalizeEmail(email);
       const user = usersByEmail.get(normalized);
@@ -964,6 +1029,784 @@ export function createMemoryStore(seed = {}) {
         if (Number(session.userId) === target) {
           sessionsByTokenHash.delete(tokenHash);
         }
+      }
+    },
+  };
+}
+
+function safeLike(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[%_]/g, (match) => `\\${match}`);
+}
+
+function normalizeMathsPaperNumber(value) {
+  const parsed = Number.parseInt(String(value || ''), 10);
+  return parsed === 1 || parsed === 2 ? parsed : null;
+}
+
+function normalizeMathsYear(value) {
+  const parsed = Number.parseInt(String(value || ''), 10);
+  return Number.isFinite(parsed) && parsed >= 1990 && parsed <= 2100 ? parsed : null;
+}
+
+function mathsPaperLabel(paperNumber) {
+  const paper = normalizeMathsPaperNumber(paperNumber);
+  if (paper === 1) return 'Paper 1 (Non-Calculator)';
+  if (paper === 2) return 'Paper 2 (Calculator)';
+  return 'Paper';
+}
+
+function isApprovedMathsRequest(request, env, store, nowSeconds) {
+  // Wrapper for readability. Returns either { ok:false, response } or { ok:true, auth }.
+  return getCurrentUser(request, env, store, nowSeconds).then((auth) => {
+    if (!auth.user) {
+      const payload = { ok: false, error: 'Authentication required.' };
+      const options = auth.clearSession ? { cookies: [clearSessionCookie(new URL(request.url), env)] } : {};
+      return { ok: false, response: jsonResponse(request, env, payload, 401, options) };
+    }
+    if (!auth.user.approved) {
+      return { ok: false, response: jsonResponse(request, env, { ok: false, error: 'Account is not approved.' }, 403) };
+    }
+    return { ok: true, auth };
+  });
+}
+
+function buildMathsPublicUrl(storageKind, storageKey) {
+  const key = String(storageKey || '').trim();
+  if (!key) return '';
+  if (storageKind === 'r2') {
+    return `/api/maths/blob?key=${encodeURIComponent(key)}`;
+  }
+  return key.startsWith('/') ? key : `/${key}`;
+}
+
+function mathsPdfKey(fileId) {
+  const id = String(fileId || '').trim();
+  if (!id) return '';
+  return `maths/pdfs/${id}.pdf`;
+}
+
+function buildMathsPdfUrl(fileId) {
+  const key = mathsPdfKey(fileId);
+  if (!key) return '';
+  return `/api/maths/blob?key=${encodeURIComponent(key)}`;
+}
+
+function safeMathsKeyPart(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .slice(0, 120);
+}
+
+function mathsCropKey(questionId, cropId, stampMillis) {
+  const q = safeMathsKeyPart(questionId);
+  const c = safeMathsKeyPart(cropId);
+  const stamp = Number.isFinite(stampMillis) ? Math.floor(stampMillis) : Date.now();
+  return `maths/crops/${q}/${c}_${stamp}.png`;
+}
+
+function mathsCropUrlById(cropId) {
+  const id = String(cropId || '').trim();
+  if (!id) return '';
+  return `/api/maths/crops/${encodeURIComponent(id)}.png`;
+}
+
+function createMathsD1Store(db) {
+  if (!db || typeof db.prepare !== 'function') {
+    throw new Error('DB binding is missing or invalid.');
+  }
+
+  return {
+    async listYears() {
+      const result = await db.prepare('SELECT DISTINCT year FROM maths_questions WHERE year IS NOT NULL ORDER BY year DESC')
+        .all();
+      const rows = Array.isArray(result?.results) ? result.results : [];
+      return rows
+        .map((row) => Number(row.year))
+        .filter((year) => Number.isFinite(year));
+    },
+
+    async listFiles(filters = {}) {
+      const type = String(filters.type || '').trim();
+      const year = normalizeMathsYear(filters.year);
+      const paperNumber = normalizeMathsPaperNumber(filters.paperNumber);
+
+      const where = [];
+      const params = [];
+
+      if (type) {
+        where.push('type = ?');
+        params.push(type);
+      }
+      if (year) {
+        where.push('year = ?');
+        params.push(year);
+      }
+      if (paperNumber) {
+        where.push('paper_number = ?');
+        params.push(paperNumber);
+      }
+
+      const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+      const result = await db.prepare(
+        `SELECT id, path, type, year, paper_number, calculator_allowed, session, page_count, created_at
+         FROM maths_files
+         ${whereSql}
+         ORDER BY year DESC, paper_number ASC, type ASC, created_at DESC`
+      )
+        .bind(...params)
+        .all();
+
+      const rows = Array.isArray(result?.results) ? result.results : [];
+      return rows.map((row) => ({
+        id: row.id,
+        path: row.path,
+        type: row.type,
+        year: row.year == null ? null : Number(row.year),
+        paperNumber: row.paper_number == null ? null : Number(row.paper_number),
+        calculatorAllowed: row.calculator_allowed == null ? null : Boolean(row.calculator_allowed),
+        session: row.session || '',
+        pageCount: row.page_count == null ? null : Number(row.page_count),
+        pdfUrl: buildMathsPdfUrl(row.id),
+        createdAt: row.created_at,
+      }));
+    },
+
+    async getFileById(fileId) {
+      const id = String(fileId || '').trim();
+      if (!id) return null;
+      const row = await db.prepare(
+        `SELECT id, path, type, year, paper_number, calculator_allowed, session, page_count, created_at
+         FROM maths_files
+         WHERE id = ?1
+         LIMIT 1`
+      )
+        .bind(id)
+        .first();
+      if (!row) return null;
+      return {
+        id: row.id,
+        path: row.path,
+        type: row.type,
+        year: row.year == null ? null : Number(row.year),
+        paperNumber: row.paper_number == null ? null : Number(row.paper_number),
+        calculatorAllowed: row.calculator_allowed == null ? null : Boolean(row.calculator_allowed),
+        session: row.session || '',
+        pageCount: row.page_count == null ? null : Number(row.page_count),
+        pdfUrl: buildMathsPdfUrl(row.id),
+        createdAt: row.created_at,
+      };
+    },
+
+    async listQuestions(filters = {}) {
+      const year = normalizeMathsYear(filters.year);
+      const paperNumber = normalizeMathsPaperNumber(filters.paperNumber);
+      const query = safeLike(filters.query);
+      const safeLimit = Math.max(1, Math.min(500, Number(filters.limit) || 200));
+
+      const where = [];
+      const params = [];
+
+      if (year) {
+        where.push('year = ?');
+        params.push(year);
+      }
+      if (paperNumber) {
+        where.push('paper_number = ?');
+        params.push(paperNumber);
+      }
+
+      if (query) {
+        where.push(`(lower(q_label) LIKE ? ESCAPE '\\\\' OR lower(coalesce(topic,'')) LIKE ? ESCAPE '\\\\' OR lower(coalesce(text_extracted,'')) LIKE ? ESCAPE '\\\\')`);
+        const like = `%${query}%`;
+        params.push(like, like, like);
+      }
+
+      const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+      const sql = `SELECT q.id, q.year, q.paper_number, q.q_number, q.q_label, q.topic,
+                          (SELECT id FROM maths_crops c WHERE c.question_id = q.id AND c.kind = 'thumb' LIMIT 1) AS thumb_id,
+                          (SELECT storage_kind FROM maths_crops c WHERE c.question_id = q.id AND c.kind = 'thumb' LIMIT 1) AS thumb_storage_kind,
+                          (SELECT storage_key FROM maths_crops c WHERE c.question_id = q.id AND c.kind = 'thumb' LIMIT 1) AS thumb_storage_key
+                   FROM maths_questions q
+                   ${whereSql}
+                   ORDER BY q.year DESC, q.paper_number ASC, q.q_number ASC
+                   LIMIT ?`;
+
+      const result = await db.prepare(sql)
+        .bind(...params, safeLimit)
+        .all();
+
+      const rows = Array.isArray(result?.results) ? result.results : [];
+      return rows.map((row) => ({
+        id: row.id,
+        year: Number(row.year),
+        paperNumber: Number(row.paper_number),
+        qNumber: Number(row.q_number),
+        qLabel: row.q_label,
+        topic: row.topic || '',
+        thumbUrl: row.thumb_id ? mathsCropUrlById(row.thumb_id) : buildMathsPublicUrl(row.thumb_storage_kind || 'public', row.thumb_storage_key || ''),
+      }));
+    },
+
+    async getQuestionById(id) {
+      const questionId = String(id || '').trim();
+      if (!questionId) return null;
+
+      const q = await db.prepare(
+        `SELECT id, year, paper_number, q_number, q_label, topic, topic_confidence, text_extracted
+         FROM maths_questions
+         WHERE id = ?1
+         LIMIT 1`
+      )
+        .bind(questionId)
+        .first();
+
+      if (!q) return null;
+
+      const cropsResult = await db.prepare(
+        `SELECT id, kind, file_id, page_index, x0, y0, x1, y1, render_dpi, storage_kind, storage_key
+         FROM maths_crops
+         WHERE question_id = ?1
+           AND kind IN ('question', 'answer')
+         ORDER BY kind ASC, page_index ASC`
+      )
+        .bind(questionId)
+        .all();
+
+      const crops = Array.isArray(cropsResult?.results) ? cropsResult.results : [];
+      const questionCrops = [];
+      const answerCrops = [];
+
+      for (const crop of crops) {
+        const item = {
+          id: crop.id,
+          fileId: crop.file_id,
+          pageIndex: Number(crop.page_index),
+          x0: Number(crop.x0),
+          y0: Number(crop.y0),
+          x1: Number(crop.x1),
+          y1: Number(crop.y1),
+          renderDpi: Number(crop.render_dpi),
+          storageKind: crop.storage_kind || 'public',
+          storageKey: crop.storage_key,
+          url: mathsCropUrlById(crop.id),
+        };
+        if (crop.kind === 'answer') answerCrops.push(item);
+        else questionCrops.push(item);
+      }
+
+      return {
+        id: q.id,
+        year: Number(q.year),
+        paperNumber: Number(q.paper_number),
+        qNumber: Number(q.q_number),
+        qLabel: q.q_label,
+        topic: q.topic || '',
+        topicConfidence: q.topic_confidence == null ? null : Number(q.topic_confidence),
+        textExtracted: q.text_extracted || '',
+        questionCrops,
+        answerCrops,
+      };
+    },
+
+    async getCropById(cropId) {
+      const id = String(cropId || '').trim();
+      if (!id) return null;
+      const crop = await db.prepare(
+        `SELECT id, question_id, kind, file_id, page_index, x0, y0, x1, y1, render_dpi, storage_kind, storage_key, status
+         FROM maths_crops
+         WHERE id = ?1
+         LIMIT 1`
+      )
+        .bind(id)
+        .first();
+      if (!crop) return null;
+      return {
+        id: String(crop.id),
+        questionId: String(crop.question_id),
+        kind: String(crop.kind),
+        fileId: String(crop.file_id || ''),
+        pageIndex: Number(crop.page_index),
+        x0: Number(crop.x0),
+        y0: Number(crop.y0),
+        x1: Number(crop.x1),
+        y1: Number(crop.y1),
+        renderDpi: Number(crop.render_dpi),
+        storageKind: String(crop.storage_kind || 'public'),
+        storageKey: String(crop.storage_key || ''),
+        status: String(crop.status || ''),
+      };
+    },
+
+    async getDatasheet(filters = {}) {
+      const year = normalizeMathsYear(filters.year);
+      const paperNumber = normalizeMathsPaperNumber(filters.paperNumber);
+      if (!year || !paperNumber) return null;
+
+      const ds = await db.prepare(
+        `SELECT d.file_id, f.year, f.paper_number
+         FROM maths_datasheets d
+         JOIN maths_files f ON f.id = d.file_id
+         WHERE d.year = ?1 AND d.paper_number = ?2
+         LIMIT 1`
+      )
+        .bind(year, paperNumber)
+        .first();
+
+      if (!ds) return null;
+
+      return {
+        year: Number(ds.year),
+        paperNumber: Number(ds.paper_number),
+        fileId: ds.file_id,
+        pdfUrl: buildMathsPdfUrl(ds.file_id),
+      };
+    },
+
+    async getDiagnostics() {
+      const files = await db.prepare('SELECT COUNT(1) AS count FROM maths_files').first();
+      const questions = await db.prepare('SELECT COUNT(1) AS count FROM maths_questions').first();
+      const crops = await db.prepare('SELECT COUNT(1) AS count FROM maths_crops').first();
+      const datasheets = await db.prepare('SELECT COUNT(1) AS count FROM maths_datasheets').first();
+      const missingMappings = await db.prepare(
+        `SELECT COUNT(1) AS count
+         FROM maths_questions q
+         WHERE NOT EXISTS (
+           SELECT 1 FROM maths_crops c WHERE c.question_id = q.id AND c.kind = 'answer'
+         )`
+      ).first();
+
+      const lastRun = await db.prepare(
+        `SELECT log_text
+         FROM maths_pipeline_runs
+         ORDER BY started_at DESC
+         LIMIT 1`
+      ).first();
+
+      const logText = String(lastRun?.log_text || '');
+      const tail = logText.length > 4000 ? logText.slice(-4000) : logText;
+
+      return {
+        files: Number(files?.count || 0),
+        questions: Number(questions?.count || 0),
+        crops: Number(crops?.count || 0),
+        datasheets: Number(datasheets?.count || 0),
+        missingMappings: Number(missingMappings?.count || 0),
+        lastLogTail: tail,
+      };
+    },
+
+    async updateQuestion(questionId, patch = {}) {
+      const id = String(questionId || '').trim();
+      if (!id) return null;
+
+      const qLabel = typeof patch.qLabel === 'string' ? patch.qLabel.trim().slice(0, 140) : null;
+      const topic = typeof patch.topic === 'string' ? patch.topic.trim().slice(0, 120) : null;
+
+      if (qLabel != null) {
+        await db.prepare('UPDATE maths_questions SET q_label = ?1 WHERE id = ?2')
+          .bind(qLabel, id)
+          .run();
+      }
+      if (topic != null) {
+        await db.prepare('UPDATE maths_questions SET topic = ?1 WHERE id = ?2')
+          .bind(topic, id)
+          .run();
+      }
+
+      return this.getQuestionById(id);
+    },
+
+    async updateCropRects(list = []) {
+      const crops = Array.isArray(list) ? list : [];
+      let updated = 0;
+      for (const item of crops) {
+        const id = String(item?.id || '').trim();
+        if (!id) continue;
+        const questionId = String(item?.questionId || '').trim();
+        if (!questionId) continue;
+        const x0 = Number(item?.x0);
+        const y0 = Number(item?.y0);
+        const x1 = Number(item?.x1);
+        const y1 = Number(item?.y1);
+        if (![x0, y0, x1, y1].every((v) => Number.isFinite(v))) continue;
+        const storageKind = typeof item?.storageKind === 'string' ? item.storageKind.trim() : '';
+        const storageKey = typeof item?.storageKey === 'string' ? item.storageKey.trim() : '';
+        const status = typeof item?.status === 'string' ? item.status.trim() : '';
+
+        const sets = ['x0 = ?1', 'y0 = ?2', 'x1 = ?3', 'y1 = ?4'];
+        const params = [x0, y0, x1, y1];
+
+        if (storageKind && (storageKind === 'public' || storageKind === 'r2')) {
+          sets.push(`storage_kind = ?${params.length + 1}`);
+          params.push(storageKind);
+        }
+        if (storageKey) {
+          sets.push(`storage_key = ?${params.length + 1}`);
+          params.push(storageKey);
+        }
+        if (status && (status === 'auto' || status === 'reviewed')) {
+          sets.push(`status = ?${params.length + 1}`);
+          params.push(status);
+        }
+
+        // Keep this column optional for backwards compatibility with older DBs.
+        sets.push('updated_at = CURRENT_TIMESTAMP');
+
+        const sql = `UPDATE maths_crops SET ${sets.join(', ')} WHERE id = ?${params.length + 1} AND question_id = ?${params.length + 2}`;
+        params.push(id, questionId);
+
+        await db.prepare(sql)
+          .bind(...params)
+          .run();
+        updated += 1;
+      }
+      return { updated };
+    },
+
+    async createCrop(crop) {
+      const id = String(crop?.id || '').trim();
+      const questionId = String(crop?.questionId || '').trim();
+      const kind = String(crop?.kind || '').trim();
+      const fileId = String(crop?.fileId || '').trim();
+      const pageIndex = Number(crop?.pageIndex);
+      const x0 = Number(crop?.x0);
+      const y0 = Number(crop?.y0);
+      const x1 = Number(crop?.x1);
+      const y1 = Number(crop?.y1);
+      const renderDpi = Number(crop?.renderDpi);
+      const storageKind = String(crop?.storageKind || 'public').trim();
+      const storageKey = String(crop?.storageKey || '').trim();
+
+      if (!id || !questionId || !fileId || !storageKey) return null;
+      if (kind !== 'question' && kind !== 'answer' && kind !== 'thumb') return null;
+      if (!Number.isFinite(pageIndex) || pageIndex < 0) return null;
+      if (![x0, y0, x1, y1].every((v) => Number.isFinite(v))) return null;
+      if (!Number.isFinite(renderDpi) || renderDpi < 36 || renderDpi > 600) return null;
+      if (storageKind !== 'public' && storageKind !== 'r2') return null;
+
+      await db.prepare(
+        `INSERT INTO maths_crops (id, question_id, kind, file_id, page_index, x0, y0, x1, y1, render_dpi, storage_kind, storage_key, status)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`
+      )
+        .bind(id, questionId, kind, fileId, pageIndex, x0, y0, x1, y1, renderDpi, storageKind, storageKey, 'reviewed')
+        .run();
+
+      return { id };
+    },
+
+    async deleteCrops(ids = []) {
+      const list = Array.isArray(ids) ? ids : [];
+      let deleted = 0;
+      for (const rawId of list) {
+        const id = String(rawId || '').trim();
+        if (!id) continue;
+        const result = await db.prepare('DELETE FROM maths_crops WHERE id = ?1')
+          .bind(id)
+          .run();
+        if (result?.success) deleted += Number(result?.meta?.changes || 0);
+      }
+      return { deleted };
+    },
+  };
+}
+
+export function createMathsMemoryStore(seed = {}) {
+  const files = new Map();
+  const questions = new Map();
+  const crops = new Map(); // cropId -> crop
+  const datasheets = new Map(); // `${year}:${paper}` -> fileId
+  const pipelineRuns = [];
+
+  const initialFiles = Array.isArray(seed.files) ? seed.files : [];
+  for (const file of initialFiles) {
+    if (!file || !file.id) continue;
+    files.set(String(file.id), { ...file });
+  }
+
+  const initialQuestions = Array.isArray(seed.questions) ? seed.questions : [];
+  for (const q of initialQuestions) {
+    questions.set(q.id, { ...q });
+  }
+
+  const initialCrops = Array.isArray(seed.crops) ? seed.crops : [];
+  for (const crop of initialCrops) {
+    crops.set(crop.id, { ...crop });
+  }
+
+  const initialYears = new Set();
+  for (const q of questions.values()) {
+    if (q.year) initialYears.add(Number(q.year));
+  }
+
+  return {
+    async listYears() {
+      return Array.from(initialYears.values()).sort((a, b) => b - a);
+    },
+
+    async listFiles(filters = {}) {
+      const type = String(filters.type || '').trim();
+      const year = normalizeMathsYear(filters.year);
+      const paperNumber = normalizeMathsPaperNumber(filters.paperNumber);
+
+      let list = Array.from(files.values());
+      if (type) list = list.filter((f) => String(f.type || '') === type);
+      if (year) list = list.filter((f) => Number(f.year) === year);
+      if (paperNumber) list = list.filter((f) => Number(f.paperNumber) === paperNumber);
+
+      list.sort(
+        (a, b) =>
+          Number(b.year || 0) - Number(a.year || 0) ||
+          Number(a.paperNumber || 0) - Number(b.paperNumber || 0) ||
+          String(a.type || '').localeCompare(String(b.type || ''))
+      );
+
+      return list.map((row) => ({
+        id: String(row.id),
+        path: row.path || '',
+        type: row.type || '',
+        year: row.year == null ? null : Number(row.year),
+        paperNumber: row.paperNumber == null ? null : Number(row.paperNumber),
+        calculatorAllowed: row.calculatorAllowed == null ? null : Boolean(row.calculatorAllowed),
+        session: row.session || '',
+        pageCount: row.pageCount == null ? null : Number(row.pageCount),
+        pdfUrl: buildMathsPdfUrl(row.id),
+        createdAt: row.createdAt || '',
+      }));
+    },
+
+    async getFileById(fileId) {
+      const id = String(fileId || '').trim();
+      if (!id) return null;
+      const row = files.get(id) || null;
+      if (!row) return null;
+      return {
+        id: String(row.id),
+        path: row.path || '',
+        type: row.type || '',
+        year: row.year == null ? null : Number(row.year),
+        paperNumber: row.paperNumber == null ? null : Number(row.paperNumber),
+        calculatorAllowed: row.calculatorAllowed == null ? null : Boolean(row.calculatorAllowed),
+        session: row.session || '',
+        pageCount: row.pageCount == null ? null : Number(row.pageCount),
+        pdfUrl: buildMathsPdfUrl(row.id),
+        createdAt: row.createdAt || '',
+      };
+    },
+
+    async listQuestions(filters = {}) {
+      const year = normalizeMathsYear(filters.year);
+      const paperNumber = normalizeMathsPaperNumber(filters.paperNumber);
+      const query = safeLike(filters.query);
+      const limit = Math.max(1, Math.min(500, Number(filters.limit) || 200));
+
+      let list = Array.from(questions.values());
+      if (year) list = list.filter((q) => Number(q.year) === year);
+      if (paperNumber) list = list.filter((q) => Number(q.paperNumber) === paperNumber);
+
+      if (query) {
+        list = list.filter((q) => {
+          const text = `${q.qLabel || ''} ${q.topic || ''} ${q.textExtracted || ''}`.toLowerCase();
+          return text.includes(query);
+        });
+      }
+
+      list.sort((a, b) => Number(b.year) - Number(a.year) || Number(a.paperNumber) - Number(b.paperNumber) || Number(a.qNumber) - Number(b.qNumber));
+
+      const thumbByQuestionId = new Map();
+      for (const crop of crops.values()) {
+        if (!crop || crop.kind !== 'thumb') continue;
+        if (!crop.questionId || thumbByQuestionId.has(crop.questionId)) continue;
+        thumbByQuestionId.set(String(crop.questionId), String(crop.id));
+      }
+
+      return list.slice(0, limit).map((q) => ({
+        id: q.id,
+        year: Number(q.year),
+        paperNumber: Number(q.paperNumber),
+        qNumber: Number(q.qNumber),
+        qLabel: q.qLabel,
+        topic: q.topic || '',
+        thumbUrl: thumbByQuestionId.has(q.id) ? mathsCropUrlById(thumbByQuestionId.get(q.id)) : (q.thumbUrl || ''),
+      }));
+    },
+
+    async getQuestionById(id) {
+      const q = questions.get(String(id || '')) || null;
+      if (!q) return null;
+
+      const questionCrops = [];
+      const answerCrops = [];
+      for (const crop of crops.values()) {
+        if (crop.questionId !== q.id) continue;
+        if (crop.kind !== 'question' && crop.kind !== 'answer') continue;
+        const item = {
+          id: crop.id,
+          fileId: crop.fileId || '',
+          pageIndex: Number(crop.pageIndex || 0),
+          x0: Number(crop.x0 || 0),
+          y0: Number(crop.y0 || 0),
+          x1: Number(crop.x1 || 0),
+          y1: Number(crop.y1 || 0),
+          renderDpi: Number(crop.renderDpi || 0),
+          storageKind: crop.storageKind || 'public',
+          storageKey: crop.storageKey || '',
+          url: mathsCropUrlById(crop.id) || crop.url || buildMathsPublicUrl(crop.storageKind || 'public', crop.storageKey || ''),
+        };
+        if (crop.kind === 'answer') answerCrops.push(item);
+        else questionCrops.push(item);
+      }
+
+      questionCrops.sort((a, b) => a.pageIndex - b.pageIndex);
+      answerCrops.sort((a, b) => a.pageIndex - b.pageIndex);
+
+      return {
+        id: q.id,
+        year: Number(q.year),
+        paperNumber: Number(q.paperNumber),
+        qNumber: Number(q.qNumber),
+        qLabel: q.qLabel,
+        topic: q.topic || '',
+        topicConfidence: q.topicConfidence == null ? null : Number(q.topicConfidence),
+        textExtracted: q.textExtracted || '',
+        questionCrops,
+        answerCrops,
+      };
+    },
+
+    async getCropById(cropId) {
+      const id = String(cropId || '').trim();
+      if (!id) return null;
+      const crop = crops.get(id) || null;
+      if (!crop) return null;
+      return {
+        id: String(crop.id),
+        questionId: String(crop.questionId || ''),
+        kind: String(crop.kind || ''),
+        fileId: String(crop.fileId || ''),
+        pageIndex: Number(crop.pageIndex || 0),
+        x0: Number(crop.x0 || 0),
+        y0: Number(crop.y0 || 0),
+        x1: Number(crop.x1 || 0),
+        y1: Number(crop.y1 || 0),
+        renderDpi: Number(crop.renderDpi || 0),
+        storageKind: String(crop.storageKind || 'public'),
+        storageKey: String(crop.storageKey || ''),
+        status: String(crop.status || ''),
+      };
+    },
+
+    async getDatasheet(filters = {}) {
+      const year = normalizeMathsYear(filters.year);
+      const paperNumber = normalizeMathsPaperNumber(filters.paperNumber);
+      if (!year || !paperNumber) return null;
+
+      const fileId = datasheets.get(`${year}:${paperNumber}`) || null;
+      if (!fileId) return null;
+      return { year, paperNumber, fileId, pdfUrl: buildMathsPdfUrl(fileId) };
+    },
+
+    async getDiagnostics() {
+      const years = new Set();
+      for (const q of questions.values()) years.add(Number(q.year));
+      const lastRun = pipelineRuns.length ? pipelineRuns[pipelineRuns.length - 1] : null;
+      const logText = String(lastRun?.logText || '');
+      const tail = logText.length > 4000 ? logText.slice(-4000) : logText;
+
+      let missingMappings = 0;
+      for (const q of questions.values()) {
+        const hasAnswer = Array.from(crops.values()).some((crop) => crop.questionId === q.id && crop.kind === 'answer');
+        if (!hasAnswer) missingMappings += 1;
+      }
+
+      return {
+        files: files.size,
+        questions: questions.size,
+        crops: crops.size,
+        datasheets: datasheets.size,
+        missingMappings,
+        lastLogTail: tail,
+      };
+    },
+
+    async updateQuestion(questionId, patch = {}) {
+      const id = String(questionId || '').trim();
+      const q = questions.get(id) || null;
+      if (!q) return null;
+
+      if (typeof patch.qLabel === 'string') {
+        q.qLabel = patch.qLabel.trim().slice(0, 140);
+      }
+      if (typeof patch.topic === 'string') {
+        q.topic = patch.topic.trim().slice(0, 120);
+      }
+
+      questions.set(id, q);
+      return this.getQuestionById(id);
+    },
+
+    async updateCropRects(list = []) {
+      const items = Array.isArray(list) ? list : [];
+      let updated = 0;
+      for (const item of items) {
+        const id = String(item?.id || '').trim();
+        const crop = crops.get(id) || null;
+        if (!crop) continue;
+        if (String(item?.questionId || '') !== String(crop.questionId || '')) continue;
+        const x0 = Number(item?.x0);
+        const y0 = Number(item?.y0);
+        const x1 = Number(item?.x1);
+        const y1 = Number(item?.y1);
+        if (![x0, y0, x1, y1].every((v) => Number.isFinite(v))) continue;
+        crop.x0 = x0;
+        crop.y0 = y0;
+        crop.x1 = x1;
+        crop.y1 = y1;
+        if (typeof item?.storageKind === 'string') crop.storageKind = item.storageKind;
+        if (typeof item?.storageKey === 'string') crop.storageKey = item.storageKey;
+        if (typeof item?.url === 'string') crop.url = item.url;
+        crops.set(id, crop);
+        updated += 1;
+      }
+      return { updated };
+    },
+
+    async createCrop(crop) {
+      const id = String(crop?.id || '').trim();
+      if (!id) return null;
+      crops.set(id, { ...crop });
+      return { id };
+    },
+
+    async deleteCrops(ids = []) {
+      const list = Array.isArray(ids) ? ids : [];
+      let deleted = 0;
+      for (const rawId of list) {
+        const id = String(rawId || '').trim();
+        if (!id) continue;
+        if (crops.delete(id)) deleted += 1;
+      }
+      return { deleted };
+    },
+
+    __unsafe_seedDatasheets(list = []) {
+      for (const item of list) {
+        const year = normalizeMathsYear(item?.year);
+        const paperNumber = normalizeMathsPaperNumber(item?.paperNumber);
+        if (!year || !paperNumber) continue;
+        if (!item.fileId) continue;
+        datasheets.set(`${year}:${paperNumber}`, String(item.fileId));
+      }
+    },
+
+    __unsafe_seedFiles(list = []) {
+      for (const file of list) {
+        if (!file || !file.id) continue;
+        files.set(String(file.id), { ...file });
       }
     },
   };
@@ -1896,6 +2739,544 @@ async function handleAdminDeny(request, env, store, url) {
   });
 }
 
+async function handleAdminDenyAllPending(request, env, store, url) {
+  if (request.method !== 'POST') {
+    return methodNotAllowed(request, env, ['POST']);
+  }
+
+  const body = await readJsonBody(request);
+  if (!body.ok) {
+    return jsonResponse(request, env, { ok: false, error: body.error }, body.status);
+  }
+
+  const access = validateAdminAccess(request, env, body.data, url);
+  if (!access.ok) {
+    return jsonResponse(request, env, { ok: false, error: access.error }, access.status);
+  }
+
+  const reason = normalizeAdminReason(body.data.reason);
+  const pendingUsers = await store.listPendingUsers(ADMIN_REVIEW_LIMIT);
+
+  let deniedCount = 0;
+  for (const user of pendingUsers) {
+    const email = normalizeEmail(user?.email || user?.username);
+    if (!email) continue;
+    await store.upsertDeniedEmail(email, reason);
+    await store.clearLoginLockout(email);
+    deniedCount += 1;
+  }
+
+  return jsonResponse(request, env, {
+    ok: true,
+    message: 'All pending users denied.',
+    deniedCount,
+  });
+}
+
+async function handleAdminClearDenied(request, env, store, url) {
+  if (request.method !== 'POST') {
+    return methodNotAllowed(request, env, ['POST']);
+  }
+
+  const access = validateAdminAccess(request, env, {}, url);
+  if (!access.ok) {
+    return jsonResponse(request, env, { ok: false, error: access.error }, access.status);
+  }
+
+  if (typeof store.purgeDeniedList !== 'function') {
+    return jsonResponse(request, env, { ok: false, error: 'Denied list purge is not supported.' }, 500);
+  }
+
+  const result = await store.purgeDeniedList();
+  return jsonResponse(request, env, {
+    ok: true,
+    message: 'Denied list purged.',
+    ...result,
+  });
+}
+
+function contentTypeForKey(key) {
+  const value = String(key || '').toLowerCase();
+  if (value.endsWith('.png')) return 'image/png';
+  if (value.endsWith('.jpg') || value.endsWith('.jpeg')) return 'image/jpeg';
+  if (value.endsWith('.webp')) return 'image/webp';
+  if (value.endsWith('.pdf')) return 'application/pdf';
+  return 'application/octet-stream';
+}
+
+async function handleMathsYears(request, env, authStore, mathsStore, nowSeconds) {
+  if (request.method !== 'GET') {
+    return methodNotAllowed(request, env, ['GET']);
+  }
+
+  const auth = await isApprovedMathsRequest(request, env, authStore, nowSeconds);
+  if (!auth.ok) return auth.response;
+
+  if (!mathsStore || typeof mathsStore.listYears !== 'function') {
+    return jsonResponse(request, env, { ok: false, error: 'Maths database is not configured.' }, 500);
+  }
+
+  const years = await mathsStore.listYears();
+  return jsonResponse(request, env, { ok: true, years }, 200);
+}
+
+async function handleMathsFiles(request, env, authStore, mathsStore, url, nowSeconds) {
+  if (request.method !== 'GET') {
+    return methodNotAllowed(request, env, ['GET']);
+  }
+
+  const auth = await isApprovedMathsRequest(request, env, authStore, nowSeconds);
+  if (!auth.ok) return auth.response;
+
+  if (!mathsStore || typeof mathsStore.listFiles !== 'function') {
+    return jsonResponse(request, env, { ok: false, error: 'Maths database is not configured.' }, 500);
+  }
+
+  const type = url.searchParams.get('type');
+  const year = url.searchParams.get('year');
+  const paper = url.searchParams.get('paper');
+
+  const files = await mathsStore.listFiles({ type, year, paperNumber: paper });
+  return jsonResponse(request, env, { ok: true, files }, 200);
+}
+
+async function handleMathsFile(request, env, authStore, mathsStore, url, nowSeconds) {
+  if (request.method !== 'GET') {
+    return methodNotAllowed(request, env, ['GET']);
+  }
+
+  const auth = await isApprovedMathsRequest(request, env, authStore, nowSeconds);
+  if (!auth.ok) return auth.response;
+
+  if (!mathsStore || typeof mathsStore.getFileById !== 'function') {
+    return jsonResponse(request, env, { ok: false, error: 'Maths database is not configured.' }, 500);
+  }
+
+  const id = String(url.searchParams.get('id') || '').trim();
+  if (!id) {
+    return jsonResponse(request, env, { ok: false, error: 'Missing file id.' }, 400);
+  }
+
+  const file = await mathsStore.getFileById(id);
+  if (!file) {
+    return jsonResponse(request, env, { ok: false, error: 'File not found.' }, 404);
+  }
+
+  return jsonResponse(request, env, { ok: true, file }, 200);
+}
+
+async function handleMathsQuestions(request, env, authStore, mathsStore, url, nowSeconds) {
+  if (request.method !== 'GET') {
+    return methodNotAllowed(request, env, ['GET']);
+  }
+
+  const auth = await isApprovedMathsRequest(request, env, authStore, nowSeconds);
+  if (!auth.ok) return auth.response;
+
+  if (!mathsStore || typeof mathsStore.listQuestions !== 'function') {
+    return jsonResponse(request, env, { ok: false, error: 'Maths database is not configured.' }, 500);
+  }
+
+  const year = url.searchParams.get('year');
+  const paper = url.searchParams.get('paper');
+  const query = url.searchParams.get('q');
+
+  const questions = await mathsStore.listQuestions({
+    year,
+    paperNumber: paper,
+    query,
+    limit: url.searchParams.get('limit'),
+  });
+
+  return jsonResponse(request, env, { ok: true, questions }, 200);
+}
+
+async function handleMathsQuestion(request, env, authStore, mathsStore, url, nowSeconds) {
+  if (request.method !== 'GET') {
+    return methodNotAllowed(request, env, ['GET']);
+  }
+
+  const auth = await isApprovedMathsRequest(request, env, authStore, nowSeconds);
+  if (!auth.ok) return auth.response;
+
+  if (!mathsStore || typeof mathsStore.getQuestionById !== 'function') {
+    return jsonResponse(request, env, { ok: false, error: 'Maths database is not configured.' }, 500);
+  }
+
+  const id = String(url.searchParams.get('id') || '').trim();
+  if (!id) {
+    return jsonResponse(request, env, { ok: false, error: 'Missing question id.' }, 400);
+  }
+
+  const question = await mathsStore.getQuestionById(id);
+  if (!question) {
+    return jsonResponse(request, env, { ok: false, error: 'Question not found.' }, 404);
+  }
+
+  return jsonResponse(request, env, { ok: true, question }, 200);
+}
+
+async function handleMathsDatasheet(request, env, authStore, mathsStore, url, nowSeconds) {
+  if (request.method !== 'GET') {
+    return methodNotAllowed(request, env, ['GET']);
+  }
+
+  const auth = await isApprovedMathsRequest(request, env, authStore, nowSeconds);
+  if (!auth.ok) return auth.response;
+
+  if (!mathsStore || typeof mathsStore.getDatasheet !== 'function') {
+    return jsonResponse(request, env, { ok: false, error: 'Maths database is not configured.' }, 500);
+  }
+
+  const year = url.searchParams.get('year');
+  const paper = url.searchParams.get('paper');
+
+  const datasheet = await mathsStore.getDatasheet({ year, paperNumber: paper });
+  return jsonResponse(
+    request,
+    env,
+    { ok: true, fileId: datasheet?.fileId || null, pdfUrl: datasheet?.pdfUrl || '' },
+    200
+  );
+}
+
+async function handleMathsDiagnostics(request, env, authStore, mathsStore, nowSeconds) {
+  if (request.method !== 'GET') {
+    return methodNotAllowed(request, env, ['GET']);
+  }
+
+  const auth = await isApprovedMathsRequest(request, env, authStore, nowSeconds);
+  if (!auth.ok) return auth.response;
+
+  if (!mathsStore || typeof mathsStore.getDiagnostics !== 'function') {
+    return jsonResponse(request, env, { ok: false, error: 'Maths database is not configured.' }, 500);
+  }
+
+  const diagnostics = await mathsStore.getDiagnostics();
+  return jsonResponse(request, env, { ok: true, ...diagnostics }, 200);
+}
+
+async function handleMathsReviewSave(request, env, authStore, mathsStore, url, nowSeconds) {
+  if (request.method !== 'POST') {
+    return methodNotAllowed(request, env, ['POST']);
+  }
+
+  const auth = await isApprovedMathsRequest(request, env, authStore, nowSeconds);
+  if (!auth.ok) return auth.response;
+
+  if (
+    !mathsStore ||
+    typeof mathsStore.updateQuestion !== 'function' ||
+    typeof mathsStore.updateCropRects !== 'function' ||
+    typeof mathsStore.createCrop !== 'function' ||
+    typeof mathsStore.deleteCrops !== 'function'
+  ) {
+    return jsonResponse(request, env, { ok: false, error: 'Maths database is not configured.' }, 500);
+  }
+
+  const body = await readJsonBody(request, 8_000_000);
+  if (!body.ok) {
+    return jsonResponse(request, env, { ok: false, error: body.error }, body.status);
+  }
+
+  const csrfToken = extractCsrfToken(request, body.data);
+  const csrfCheck = validateCsrf(request, env, csrfToken);
+  if (!csrfCheck.ok) {
+    const replacementToken = randomToken(24);
+    return jsonResponse(
+      request,
+      env,
+      { ok: false, error: csrfCheck.message, csrfToken: replacementToken },
+      403,
+      { cookies: [buildCsrfCookie(replacementToken, url, env)] }
+    );
+  }
+
+  const questionId = String(body.data?.questionId || '').trim();
+  if (!questionId) {
+    return jsonResponse(request, env, { ok: false, error: 'questionId is required.' }, 400);
+  }
+
+  const patch = body.data?.question || {};
+  const cropPatches = Array.isArray(body.data?.crops) ? body.data.crops : [];
+  const newCrops = Array.isArray(body.data?.newCrops) ? body.data.newCrops : [];
+  const deleteCropIds = Array.isArray(body.data?.deleteCropIds) ? body.data.deleteCropIds : [];
+
+  if (deleteCropIds.length) {
+    return jsonResponse(request, env, { ok: false, error: 'Deleting crops is disabled.' }, 403);
+  }
+
+  const updatedQuestion = await mathsStore.updateQuestion(questionId, {
+    qLabel: patch.qLabel,
+    topic: patch.topic,
+  });
+
+  if (!updatedQuestion) {
+    return jsonResponse(request, env, { ok: false, error: 'Question not found.' }, 404);
+  }
+
+  const toUpload = [];
+  const normalizedPatches = [];
+  const normalizedCreates = [];
+
+  for (const raw of cropPatches) {
+    const id = String(raw?.id || '').trim();
+    if (!id) continue;
+    const x0 = Number(raw?.x0);
+    const y0 = Number(raw?.y0);
+    const x1 = Number(raw?.x1);
+    const y1 = Number(raw?.y1);
+    if (![x0, y0, x1, y1].every((v) => Number.isFinite(v))) continue;
+
+    const item = {
+      id,
+      questionId,
+      x0,
+      y0,
+      x1,
+      y1,
+      status: 'reviewed',
+    };
+
+    const imageBase64 = typeof raw?.imageBase64 === 'string' ? raw.imageBase64.trim() : '';
+    const contentType = typeof raw?.contentType === 'string' ? raw.contentType.trim() : '';
+    if (imageBase64) {
+      const key = mathsCropKey(questionId, id, Date.now());
+      toUpload.push({ key, imageBase64, contentType: contentType || 'image/png' });
+      item.storageKind = 'r2';
+      item.storageKey = key;
+    }
+
+    normalizedPatches.push(item);
+  }
+
+  for (const raw of newCrops) {
+    const kind = String(raw?.kind || '').trim();
+    const fileId = String(raw?.fileId || '').trim();
+    const pageIndex = Number(raw?.pageIndex);
+    const x0 = Number(raw?.x0);
+    const y0 = Number(raw?.y0);
+    const x1 = Number(raw?.x1);
+    const y1 = Number(raw?.y1);
+    const renderDpi = Number(raw?.renderDpi);
+    const imageBase64 = typeof raw?.imageBase64 === 'string' ? raw.imageBase64.trim() : '';
+    const contentType = typeof raw?.contentType === 'string' ? raw.contentType.trim() : '';
+    if (!imageBase64) continue;
+    if (kind !== 'question' && kind !== 'answer' && kind !== 'thumb') continue;
+    if (!fileId) continue;
+    if (!Number.isFinite(pageIndex) || pageIndex < 0) continue;
+    if (![x0, y0, x1, y1].every((v) => Number.isFinite(v))) continue;
+    if (!Number.isFinite(renderDpi) || renderDpi < 36 || renderDpi > 600) continue;
+
+    const id = crypto.randomUUID();
+    const key = mathsCropKey(questionId, id, Date.now());
+    toUpload.push({ key, imageBase64, contentType: contentType || 'image/png' });
+    normalizedCreates.push({
+      id,
+      questionId,
+      kind,
+      fileId,
+      pageIndex,
+      x0,
+      y0,
+      x1,
+      y1,
+      renderDpi,
+      storageKind: 'r2',
+      storageKey: key,
+    });
+  }
+
+  if (toUpload.length && (!env.MATHS_BUCKET && !env.MATHS_ASSETS)) {
+    return jsonResponse(request, env, { ok: false, error: 'Maths storage is not configured.' }, 503);
+  }
+
+  // Upload blobs first; DB updates should never point at missing objects.
+  let uploaded = 0;
+  for (const item of toUpload) {
+    const rawValue = String(item.imageBase64 || '');
+    const match = rawValue.match(/^data:([^;]+);base64,(.+)$/);
+    const base64 = match ? match[2] : rawValue;
+    const metaType = match ? match[1] : '';
+    if (base64.length > 12_000_000) {
+      return jsonResponse(request, env, { ok: false, error: 'Upload is too large.' }, 413);
+    }
+    const bytes = base64ToBytes(base64);
+    const putType = String(item.contentType || metaType || '').trim();
+
+    if (env.MATHS_BUCKET && typeof env.MATHS_BUCKET.put === 'function') {
+      await env.MATHS_BUCKET.put(item.key, bytes, { httpMetadata: { contentType: putType || contentTypeForKey(item.key) } });
+    } else {
+      await env.MATHS_ASSETS.put(item.key, bytes, { metadata: { contentType: putType || contentTypeForKey(item.key) } });
+    }
+    uploaded += 1;
+  }
+
+  const deleteResult = { deleted: 0 };
+
+  const createdCropIds = [];
+  for (const crop of normalizedCreates) {
+    await mathsStore.createCrop(crop);
+    createdCropIds.push(crop.id);
+  }
+
+  const cropResult = await mathsStore.updateCropRects(normalizedPatches);
+
+  return jsonResponse(request, env, {
+    ok: true,
+    message: 'Review saved.',
+    uploaded,
+    deletedCrops: deleteResult.deleted,
+    createdCropIds,
+    updatedCrops: cropResult.updated,
+    question: await mathsStore.getQuestionById(questionId),
+  });
+}
+
+function parseMathsCropIdFromPath(pathname) {
+  const path = String(pathname || '');
+  const prefix = '/api/maths/crops/';
+  if (!path.startsWith(prefix) || !path.endsWith('.png')) return null;
+
+  const encoded = path.slice(prefix.length, -'.png'.length);
+  if (!encoded || encoded.includes('/')) return null;
+
+  try {
+    const decoded = decodeURIComponent(encoded);
+    return decoded ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
+async function handleMathsCropPng(request, env, authStore, mathsStore, cropId, nowSeconds) {
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return methodNotAllowed(request, env, ['GET', 'HEAD']);
+  }
+  const isHead = request.method === 'HEAD';
+
+  const auth = await isApprovedMathsRequest(request, env, authStore, nowSeconds);
+  if (!auth.ok) return auth.response;
+
+  if (!mathsStore || typeof mathsStore.getCropById !== 'function') {
+    return jsonResponse(request, env, { ok: false, error: 'Maths database is not configured.' }, 500);
+  }
+
+  const crop = await mathsStore.getCropById(cropId);
+  if (!crop) {
+    return jsonResponse(request, env, { ok: false, error: 'Crop not found.' }, 404);
+  }
+
+  const key = String(crop.storageKey || '').trim();
+  if (!key || !key.startsWith('maths/')) {
+    return jsonResponse(request, env, { ok: false, error: 'Crop is missing storage key.' }, 404);
+  }
+
+  // Prefer R2 if configured, otherwise fall back to KV.
+  if (env.MATHS_BUCKET && typeof env.MATHS_BUCKET.get === 'function') {
+    const object = await env.MATHS_BUCKET.get(key);
+    if (!object) {
+      return jsonResponse(request, env, { ok: false, error: 'Not found.' }, 404);
+    }
+
+    const headers = new Headers();
+    headers.set('Content-Type', 'image/png');
+    headers.set('Cache-Control', 'private, no-store');
+    if (Number.isFinite(object.size)) {
+      headers.set('Content-Length', String(object.size));
+    }
+    headers.set('Accept-Ranges', 'bytes');
+    addCorsHeaders(request, env, headers);
+    applyCommonSecurityHeaders(headers);
+
+    return new Response(isHead ? null : object.body, {
+      status: 200,
+      headers,
+    });
+  }
+
+  if (!env.MATHS_ASSETS || typeof env.MATHS_ASSETS.getWithMetadata !== 'function') {
+    return jsonResponse(request, env, { ok: false, error: 'Maths storage is not configured.' }, 503);
+  }
+
+  const result = await env.MATHS_ASSETS.getWithMetadata(key, { type: 'arrayBuffer' });
+  if (!result || !result.value) {
+    return jsonResponse(request, env, { ok: false, error: 'Not found.' }, 404);
+  }
+
+  const headers = new Headers();
+  headers.set('Content-Type', 'image/png');
+  headers.set('Cache-Control', 'private, no-store');
+  headers.set('Content-Length', String(result.value.byteLength));
+  headers.set('Accept-Ranges', 'bytes');
+  addCorsHeaders(request, env, headers);
+  applyCommonSecurityHeaders(headers);
+
+  return new Response(isHead ? null : result.value, { status: 200, headers });
+}
+
+async function handleMathsBlob(request, env, authStore, url, nowSeconds) {
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return methodNotAllowed(request, env, ['GET', 'HEAD']);
+  }
+  const isHead = request.method === 'HEAD';
+
+  const auth = await isApprovedMathsRequest(request, env, authStore, nowSeconds);
+  if (!auth.ok) return auth.response;
+
+  const key = String(url.searchParams.get('key') || '').trim();
+  if (!key) {
+    return jsonResponse(request, env, { ok: false, error: 'Missing key.' }, 400);
+  }
+
+  if (!key.startsWith('maths/')) {
+    return jsonResponse(request, env, { ok: false, error: 'Invalid key.' }, 400);
+  }
+
+  // Prefer R2 if configured, otherwise fall back to KV.
+  if (env.MATHS_BUCKET && typeof env.MATHS_BUCKET.get === 'function') {
+    const object = await env.MATHS_BUCKET.get(key);
+    if (!object) {
+      return jsonResponse(request, env, { ok: false, error: 'Not found.' }, 404);
+    }
+
+    const headers = new Headers();
+    headers.set('Content-Type', object.httpMetadata?.contentType || contentTypeForKey(key));
+    headers.set('Cache-Control', 'private, max-age=3600');
+    if (Number.isFinite(object.size)) {
+      headers.set('Content-Length', String(object.size));
+    }
+    headers.set('Accept-Ranges', 'bytes');
+    addCorsHeaders(request, env, headers);
+    applyCommonSecurityHeaders(headers);
+
+    return new Response(isHead ? null : object.body, {
+      status: 200,
+      headers,
+    });
+  }
+
+  if (!env.MATHS_ASSETS || typeof env.MATHS_ASSETS.getWithMetadata !== 'function') {
+    return jsonResponse(request, env, { ok: false, error: 'Maths storage is not configured.' }, 503);
+  }
+
+  const result = await env.MATHS_ASSETS.getWithMetadata(key, { type: 'arrayBuffer' });
+  if (!result || !result.value) {
+    return jsonResponse(request, env, { ok: false, error: 'Not found.' }, 404);
+  }
+
+  const headers = new Headers();
+  const metaType = result.metadata && typeof result.metadata.contentType === 'string' ? result.metadata.contentType : '';
+  headers.set('Content-Type', metaType || contentTypeForKey(key));
+  headers.set('Cache-Control', 'private, max-age=3600');
+  headers.set('Content-Length', String(result.value.byteLength));
+  headers.set('Accept-Ranges', 'bytes');
+  addCorsHeaders(request, env, headers);
+  applyCommonSecurityHeaders(headers);
+
+  return new Response(isHead ? null : result.value, { status: 200, headers });
+}
+
 export function createApiHandler(options = {}) {
   const now = typeof options.now === 'function' ? options.now : () => Date.now();
 
@@ -1905,9 +3286,15 @@ export function createApiHandler(options = {}) {
         if (!request?.url || !request.url.startsWith('http')) {
           return new Response('Bad request', { status: 400 });
         }
-
         const url = new URL(request.url);
         const path = url.pathname;
+        
+        if (path === '/healthz') {
+          return new Response(JSON.stringify({ ok: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          });
+        }
 
         if (!path.startsWith('/api/')) {
           return notFound(request, env);
@@ -1948,6 +3335,8 @@ export function createApiHandler(options = {}) {
           return jsonResponse(request, env, { ok: false, error: 'Database binding is not configured.' }, 500);
         }
 
+        const mathsStore = env.MATHS_STORE || (env.DB ? createMathsD1Store(env.DB) : null);
+
         const nowSeconds = Math.floor(now() / 1000);
 
         if (path === '/api/admin/review') {
@@ -1960,6 +3349,14 @@ export function createApiHandler(options = {}) {
 
         if (path === '/api/admin/deny') {
           return handleAdminDeny(request, env, store, url, nowSeconds);
+        }
+
+        if (path === '/api/admin/pending/deny-all') {
+          return handleAdminDenyAllPending(request, env, store, url, nowSeconds);
+        }
+
+        if (path === '/api/admin/denied/clear') {
+          return handleAdminClearDenied(request, env, store, url, nowSeconds);
         }
 
         if (path === '/api/auth/me') {
@@ -1980,6 +3377,47 @@ export function createApiHandler(options = {}) {
 
         if (path === '/api/protected/example') {
           return handleProtectedExample(request, env, store, url, nowSeconds);
+        }
+
+        const cropId = parseMathsCropIdFromPath(path);
+        if (cropId) {
+          return handleMathsCropPng(request, env, store, mathsStore, cropId, nowSeconds);
+        }
+
+        if (path === '/api/maths/years') {
+          return handleMathsYears(request, env, store, mathsStore, nowSeconds);
+        }
+
+        if (path === '/api/maths/files') {
+          return handleMathsFiles(request, env, store, mathsStore, url, nowSeconds);
+        }
+
+        if (path === '/api/maths/file') {
+          return handleMathsFile(request, env, store, mathsStore, url, nowSeconds);
+        }
+
+        if (path === '/api/maths/questions') {
+          return handleMathsQuestions(request, env, store, mathsStore, url, nowSeconds);
+        }
+
+        if (path === '/api/maths/question') {
+          return handleMathsQuestion(request, env, store, mathsStore, url, nowSeconds);
+        }
+
+        if (path === '/api/maths/datasheet') {
+          return handleMathsDatasheet(request, env, store, mathsStore, url, nowSeconds);
+        }
+
+        if (path === '/api/maths/diagnostics') {
+          return handleMathsDiagnostics(request, env, store, mathsStore, nowSeconds);
+        }
+
+        if (path === '/api/maths/review/save') {
+          return handleMathsReviewSave(request, env, store, mathsStore, url, nowSeconds);
+        }
+
+        if (path === '/api/maths/blob') {
+          return handleMathsBlob(request, env, store, url, nowSeconds);
         }
 
         if (path === '/api/match') {
