@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 import sqlite3
 from collections import defaultdict
 from dataclasses import dataclass
@@ -16,6 +15,7 @@ from .segment import (
     extract_text_for_clip,
     maths_crop_key,
     maths_pdf_key,
+    paper_page_ranges,
     render_clip_png,
     segment_document,
     write_asset_manifest_line,
@@ -86,8 +86,6 @@ def segment_question_bank(
     files = _fetch_files(conn, year=year, paper=paper, file_id=file_id, kind=None)
     grouped = _group_files_by_year_paper(files)
 
-    paper_boundary_re = re.compile(r"\bHigher\s*[–-]\s*Paper\s+([12])\b", re.IGNORECASE)
-
     for (y, p), items in sorted(grouped.items(), key=lambda kv: (kv[0][0], kv[0][1])):
         past_papers = [r for r in items if r["type"] == "past_paper"]
         mark_schemes = [r for r in items if r["type"] == "mark_scheme"]
@@ -118,7 +116,28 @@ def segment_question_bank(
 
         paper_doc = fitz.open(str(paper_path))
         try:
-            paper_segments = segment_document(paper_doc, top_margin=cfg.top_margin_pt, bottom_margin=cfg.bottom_margin_pt)
+            paper_ranges = paper_page_ranges(paper_doc)
+            page_start, page_end = paper_ranges.get(int(p), (0, int(paper_doc.page_count)))
+            paper_segments = segment_document(
+                paper_doc,
+                top_margin=cfg.top_margin_pt,
+                bottom_margin=cfg.bottom_margin_pt,
+                page_start=int(page_start),
+                page_end=int(page_end),
+                bold_only=True,
+                anchor_mode="paper",
+            )
+            if not paper_segments:
+                # Some PDFs may not embed fonts with "Bold" in the name.
+                paper_segments = segment_document(
+                    paper_doc,
+                    top_margin=cfg.top_margin_pt,
+                    bottom_margin=cfg.bottom_margin_pt,
+                    page_start=int(page_start),
+                    page_end=int(page_end),
+                    bold_only=False,
+                    anchor_mode="paper",
+                )
             by_q: dict[int, list] = defaultdict(list)
             for seg in paper_segments:
                 by_q[int(seg.q_number)].append(seg)
@@ -255,24 +274,27 @@ def segment_question_bank(
 
         scheme_doc = fitz.open(str(scheme_path))
         try:
-            # Some marking-instructions PDFs bundle both papers. If we detect the other paper's
-            # cover page, stop segmentation before it.
-            scheme_end = scheme_doc.page_count
-            other_paper = 2 if p == 1 else 1
-            for pi in range(scheme_doc.page_count):
-                text = scheme_doc.load_page(pi).get_text("text") or ""
-                match = paper_boundary_re.search(text)
-                if match and int(match.group(1)) == other_paper:
-                    scheme_end = pi
-                    break
-
+            scheme_ranges = paper_page_ranges(scheme_doc)
+            scheme_start, scheme_end = scheme_ranges.get(int(p), (0, int(scheme_doc.page_count)))
             scheme_segments = segment_document(
                 scheme_doc,
                 top_margin=cfg.top_margin_pt,
                 bottom_margin=cfg.bottom_margin_pt,
-                page_start=0,
-                page_end=scheme_end,
+                page_start=int(scheme_start),
+                page_end=int(scheme_end),
+                bold_only=True,
+                anchor_mode="scheme",
             )
+            if not scheme_segments:
+                scheme_segments = segment_document(
+                    scheme_doc,
+                    top_margin=cfg.top_margin_pt,
+                    bottom_margin=cfg.bottom_margin_pt,
+                    page_start=int(scheme_start),
+                    page_end=int(scheme_end),
+                    bold_only=False,
+                    anchor_mode="scheme",
+                )
             by_q_ans: dict[int, list] = defaultdict(list)
             for seg in scheme_segments:
                 by_q_ans[int(seg.q_number)].append(seg)

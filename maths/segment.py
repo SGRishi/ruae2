@@ -14,7 +14,10 @@ from .util import BBox, safe_key_part
 
 _PAPER_RE = re.compile(r"\bpaper\s+([12])\b", re.IGNORECASE)
 _SESSION_RE = re.compile(r"\b(MAY|AUGUST|OCTOBER|NOVEMBER|DECEMBER)\b", re.IGNORECASE)
-_ANCHOR_RE = re.compile(r"^(\d{1,2})\.$")
+_PAPER_ANCHOR_RE = re.compile(r"^(\d{1,2})\.$")
+# Marking instructions vary across years: "9", "9.", "11(a).", "13 (b)(i)", "14.(c)".
+# Keep this strict (no trailing words) to avoid matching note text like "5. An incorrect ...".
+_SCHEME_ANCHOR_RE = re.compile(r"^(\d{1,2})\s*\.?\s*(?:\([a-z0-9]+\)\s*)*(?:\.)?$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -61,16 +64,117 @@ def parse_session(first_page_text: str) -> str | None:
         return None
     return match.group(1).title()
 
+def paper_page_ranges(doc: fitz.Document) -> dict[int, tuple[int, int]]:
+    """Return page ranges (start, end) for each paper number detected in the PDF.
 
-def detect_anchors(page_dict: dict) -> list[Anchor]:
+    Many SQA PDFs bundle Paper 1 and Paper 2 into a single file. We detect the
+    first page where each paper appears and compute contiguous ranges.
+    """
+    starts: dict[int, int] = {}
+    for pi in range(int(doc.page_count)):
+        try:
+            text = doc.load_page(pi).get_text("text") or ""
+        except Exception:
+            text = ""
+        p = parse_paper_number(text)
+        if p in (1, 2) and int(p) not in starts:
+            starts[int(p)] = int(pi)
+            if len(starts) >= 2:
+                # In practice papers are contiguous and we only expect 1 or 2.
+                # Early exit keeps ingest/segmentation snappy on larger PDFs.
+                break
+
+    if not starts:
+        return {}
+
+    ordered = sorted(starts.items(), key=lambda kv: kv[1])
+    ranges: dict[int, tuple[int, int]] = {}
+    for idx, (paper, start) in enumerate(ordered):
+        end = ordered[idx + 1][1] if idx + 1 < len(ordered) else int(doc.page_count)
+        ranges[int(paper)] = (int(start), int(end))
+    return ranges
+
+
+def detect_anchors(page_dict: dict, *, bold_only: bool = False, anchor_mode: str = "paper") -> list[Anchor]:
     anchors: list[Anchor] = []
+    if anchor_mode not in ("paper", "scheme"):
+        raise ValueError(f"Unknown anchor_mode={anchor_mode!r}")
+
     for block in page_dict.get("blocks", []) or []:
+        block_has_notes = False
+        if anchor_mode == "scheme":
+            for line in block.get("lines", []) or []:
+                for span in line.get("spans", []) or []:
+                    if str(span.get("text", "")).strip().lower() == "notes:":
+                        block_has_notes = True
+                        break
+                if block_has_notes:
+                    break
+            if block_has_notes:
+                # Notes blocks often contain numbered items (e.g. "4.", "5.") that are not
+                # question starts. Skip the entire block to avoid tiny bogus crops.
+                continue
+
         for line in block.get("lines", []) or []:
-            for span in line.get("spans", []) or []:
+            spans = line.get("spans", []) or []
+            if not spans:
+                continue
+
+            cand_spans: list[dict] = []
+            if anchor_mode == "paper":
+                # Papers are safe to scan span-by-span; question numbers are usually isolated spans.
+                cand_spans = list(spans)
+            else:
+                # Marking instructions contain lots of maths. Only consider the left-most span
+                # per line; digits inside equations are rarely left-most.
+                left = None
+                left_x0 = 1e9
+                for span in spans:
+                    bbox = span.get("bbox")
+                    if not bbox or len(bbox) != 4:
+                        continue
+                    x0 = float(bbox[0])
+                    if x0 < left_x0:
+                        left = span
+                        left_x0 = x0
+                if left is not None:
+                    cand_spans = [left]
+
+            for span in cand_spans:
                 text = str(span.get("text", "")).strip()
-                match = _ANCHOR_RE.match(text)
+                if not text:
+                    continue
+
+                match = _PAPER_ANCHOR_RE.match(text) if anchor_mode == "paper" else _SCHEME_ANCHOR_RE.match(text)
                 if not match:
                     continue
+
+                font = str(span.get("font") or "")
+                if bold_only and "bold" not in font.lower():
+                    continue
+
+                # Extra safety: digit-only anchors are noisy in schemes; require bold even when
+                # bold_only=False (fallback mode).
+                if anchor_mode == "scheme" and text.isdigit() and "bold" not in font.lower():
+                    continue
+
+                if anchor_mode == "scheme":
+                    # Reject note-item numbering like "6. Where candidates..." by ensuring the
+                    # line contains only the anchor token plus optional part tokens (e.g. "(a)").
+                    other = []
+                    for sp in spans:
+                        t = str(sp.get("text", "")).strip()
+                        if not t:
+                            continue
+                        if t == text:
+                            continue
+                        # Allow pure part tokens beside the number.
+                        if re.fullmatch(r"\([a-z0-9]+\)", t, flags=re.IGNORECASE):
+                            continue
+                        other.append(t)
+                    if other:
+                        continue
+
                 bbox = span.get("bbox")
                 if not bbox or len(bbox) != 4:
                     continue
@@ -103,6 +207,8 @@ def segment_document(
     bottom_margin: float = 8.0,
     page_start: int = 0,
     page_end: int | None = None,
+    bold_only: bool = False,
+    anchor_mode: str = "paper",
 ) -> list[Segment]:
     # Collect all candidate anchors in reading order.
     all_anchors: list[tuple[int, Anchor]] = []
@@ -111,10 +217,40 @@ def segment_document(
     page_start = max(0, int(page_start))
     page_end = max(page_start, min(int(page_end), doc.page_count))
 
+    if anchor_mode == "scheme":
+        # Marking instructions often include intro pages (general rules, examples, etc.) before
+        # the question-by-question tables. Anchors on those pages are not question numbers.
+        # Find the first page that contains the table header "Question" near the top.
+        for pi in range(page_start, page_end):
+            try:
+                page_dict = doc.load_page(pi).get_text("dict")
+            except Exception:
+                continue
+            found = False
+            for block in page_dict.get("blocks", []) or []:
+                for line in block.get("lines", []) or []:
+                    for span in line.get("spans", []) or []:
+                        text = str(span.get("text", "")).strip()
+                        if text.lower() != "question":
+                            continue
+                        bbox = span.get("bbox")
+                        if bbox and len(bbox) == 4:
+                            _x0, y0, _x1, _y1 = bbox
+                            if float(y0) < 200.0:
+                                found = True
+                                break
+                    if found:
+                        break
+                if found:
+                    break
+            if found:
+                page_start = int(pi)
+                break
+
     for page_index in range(page_start, page_end):
         page = doc.load_page(page_index)
         page_dict = page.get_text("dict")
-        anchors = detect_anchors(page_dict)
+        anchors = detect_anchors(page_dict, bold_only=bold_only, anchor_mode=anchor_mode)
         for a in anchors:
             all_anchors.append((page_index, a))
 
