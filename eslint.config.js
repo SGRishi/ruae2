@@ -3,7 +3,7 @@ import globals from 'globals';
 
 export default [
   {
-    ignores: ['dist/**', 'node_modules/**', '.wrangler/**'],
+    ignores: ['dist/**', 'node_modules/**', '.wrangler/**', 'public/maths/vendor/**'],
   },
   js.configs.recommended,
   {
@@ -18,10 +18,41 @@ export default [
     },
   },
   {
+    files: ['playwright.config.mjs'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+  {
+    files: ['qa/**/*.{js,mjs}'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+        ...globals.worker,
+      },
+    },
+  },
+  {
     files: ['public/**/*.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'script',
+      globals: {
+        ...globals.browser,
+      },
+    },
+  },
+  {
+    files: ['public/maths/maths.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
       globals: {
         ...globals.browser,
       },

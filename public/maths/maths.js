@@ -633,8 +633,6 @@ import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
     wrapper.dataset.testid = 'maths-review-view';
 
     const filesById = context && context.filesById ? context.filesById : new Map();
-    const pastPaperFiles = context && Array.isArray(context.pastPaperFiles) ? context.pastPaperFiles : [];
-    const markSchemeFiles = context && Array.isArray(context.markSchemeFiles) ? context.markSchemeFiles : [];
 
     const review = {
       cropEditors: new Map(), // cropId -> editor

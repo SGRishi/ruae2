@@ -1051,13 +1051,6 @@ function normalizeMathsYear(value) {
   return Number.isFinite(parsed) && parsed >= 1990 && parsed <= 2100 ? parsed : null;
 }
 
-function mathsPaperLabel(paperNumber) {
-  const paper = normalizeMathsPaperNumber(paperNumber);
-  if (paper === 1) return 'Paper 1 (Non-Calculator)';
-  if (paper === 2) return 'Paper 2 (Calculator)';
-  return 'Paper';
-}
-
 function isApprovedMathsRequest(request, env, store, nowSeconds) {
   // Wrapper for readability. Returns either { ok:false, response } or { ok:true, auth }.
   return getCurrentUser(request, env, store, nowSeconds).then((auth) => {
