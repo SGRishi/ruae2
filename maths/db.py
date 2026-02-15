@@ -129,6 +129,28 @@ def upsert_crop(conn: sqlite3.Connection, row: dict[str, Any], *, force: bool) -
     return True
 
 
+def delete_auto_crops_not_in(conn: sqlite3.Connection, *, question_id: str, kind: str, keep_ids: list[str]) -> int:
+    qid = str(question_id or "").strip()
+    k = str(kind or "").strip()
+    if not qid or not k:
+        return 0
+
+    keep = [str(item).strip() for item in (keep_ids or []) if str(item).strip()]
+    if not keep:
+        return 0
+
+    placeholders = ",".join(["?"] * len(keep))
+    sql = f"""
+    DELETE FROM maths_crops
+    WHERE question_id = ?
+      AND kind = ?
+      AND status = 'auto'
+      AND id NOT IN ({placeholders})
+    """
+    cur = conn.execute(sql, (qid, k, *keep))
+    return int(cur.rowcount or 0)
+
+
 def upsert_datasheet(conn: sqlite3.Connection, *, year: int, paper_number: int, file_id: str) -> None:
     conn.execute(
         """
@@ -144,4 +166,3 @@ def upsert_datasheet(conn: sqlite3.Connection, *, year: int, paper_number: int, 
             "file_id": file_id,
         },
     )
-

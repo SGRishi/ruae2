@@ -168,6 +168,7 @@ def segment_question_bank(
                 text_parts: list[str] = []
                 first_crop_path: Path | None = None
                 first_bbox: tuple[float, float, float, float] | None = None
+                question_crop_ids: list[str] = []
 
                 for idx, seg in enumerate(segs_sorted, start=1):
                     page = paper_doc.load_page(seg.page_index)
@@ -183,6 +184,7 @@ def segment_question_bank(
                     write_asset_manifest_line(cfg.asset_manifest, key=crop_key, local_path=crop_path, content_type="image/png")
 
                     crop_id = f"crop_{qid}_question_{idx:02d}"
+                    question_crop_ids.append(crop_id)
                     wrote = dbmod.upsert_crop(
                         conn,
                         {
@@ -210,6 +212,9 @@ def segment_question_bank(
                     if first_crop_path is None:
                         first_crop_path = crop_path
                         first_bbox = (bbox.x0, bbox.y0, bbox.x1, bbox.y1)
+
+                if question_crop_ids:
+                    dbmod.delete_auto_crops_not_in(conn, question_id=qid, kind="question", keep_ids=question_crop_ids)
 
                 text_extracted = " ".join([t for t in text_parts if t]).strip()
                 topic, conf = classify_topic(text_extracted)
@@ -259,6 +264,8 @@ def segment_question_bank(
                     if wrote_thumb and run_id:
                         dbmod.append_pipeline_log(conn, run_id, f"CROP q={qid} kind=thumb id={thumb_id} key={thumb_key}")
 
+                    dbmod.delete_auto_crops_not_in(conn, question_id=qid, kind="thumb", keep_ids=[thumb_id])
+
         finally:
             paper_doc.close()
 
@@ -304,6 +311,7 @@ def segment_question_bank(
                 if not ans_segs:
                     continue
                 ans_sorted = sorted(ans_segs, key=lambda s: (s.page_index, s.y0_top))
+                answer_crop_ids: list[str] = []
                 for idx, seg in enumerate(ans_sorted, start=1):
                     page = scheme_doc.load_page(seg.page_index)
                     page_w = float(page.rect.width)
@@ -318,6 +326,7 @@ def segment_question_bank(
                     write_asset_manifest_line(cfg.asset_manifest, key=crop_key, local_path=crop_path, content_type="image/png")
 
                     crop_id = f"crop_{qid}_answer_{idx:02d}"
+                    answer_crop_ids.append(crop_id)
                     wrote = dbmod.upsert_crop(
                         conn,
                         {
@@ -339,6 +348,9 @@ def segment_question_bank(
                     )
                     if wrote and run_id:
                         dbmod.append_pipeline_log(conn, run_id, f"CROP q={qid} kind=answer id={crop_id} key={crop_key}")
+
+                if answer_crop_ids:
+                    dbmod.delete_auto_crops_not_in(conn, question_id=qid, kind="answer", keep_ids=answer_crop_ids)
         finally:
             scheme_doc.close()
 

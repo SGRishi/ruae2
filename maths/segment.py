@@ -19,6 +19,48 @@ _PAPER_ANCHOR_RE = re.compile(r"^(\d{1,2})\.$")
 # Keep this strict (no trailing words) to avoid matching note text like "5. An incorrect ...".
 _SCHEME_ANCHOR_RE = re.compile(r"^(\d{1,2})\s*\.?\s*(?:\([a-z0-9]+\)\s*)*(?:\.)?$", re.IGNORECASE)
 
+def scheme_header_bottom_y(page_dict: dict) -> float | None:
+    """Return the bottom y (top-origin) of the scheme table header row, when present.
+
+    Mark schemes typically repeat a header row ("Question", "Generic scheme", etc.) at the
+    top of each page. We use this to avoid generating crops that contain only the header.
+    """
+    best: float | None = None
+
+    for block in page_dict.get("blocks", []) or []:
+        for line in block.get("lines", []) or []:
+            spans = line.get("spans", []) or []
+            if not spans:
+                continue
+
+            has_question = False
+            top = 1e9
+            bottom = -1.0
+
+            for span in spans:
+                text = str(span.get("text", "")).strip().lower()
+                if text == "question":
+                    has_question = True
+
+                bbox = span.get("bbox")
+                if not bbox or len(bbox) != 4:
+                    continue
+                y0 = float(bbox[1])
+                y1 = float(bbox[3])
+                top = min(top, y0)
+                bottom = max(bottom, y1)
+
+            if not has_question:
+                continue
+            if bottom < 0:
+                continue
+            if top >= 250.0:
+                continue
+            if best is None or bottom > best:
+                best = bottom
+
+    return best
+
 
 @dataclass(frozen=True)
 class FileMeta:
@@ -247,9 +289,14 @@ def segment_document(
                 page_start = int(pi)
                 break
 
+    scheme_header_bottom_by_page: dict[int, float] = {}
     for page_index in range(page_start, page_end):
         page = doc.load_page(page_index)
         page_dict = page.get_text("dict")
+        if anchor_mode == "scheme":
+            bottom = scheme_header_bottom_y(page_dict)
+            if bottom is not None:
+                scheme_header_bottom_by_page[int(page_index)] = float(bottom)
         anchors = detect_anchors(page_dict, bold_only=bold_only, anchor_mode=anchor_mode)
         for a in anchors:
             all_anchors.append((page_index, a))
@@ -275,10 +322,21 @@ def segment_document(
         return []
 
     segments: list[Segment] = []
+
+    def scheme_content_y0(page_index: int) -> float:
+        if anchor_mode != "scheme":
+            return 0.0
+        bottom = scheme_header_bottom_by_page.get(int(page_index))
+        if bottom is None:
+            return 0.0
+        # Pad to clear the header row + border.
+        return max(0.0, float(bottom) + 6.0)
+
     for idx, (start_page_idx, start_anchor) in enumerate(main):
         start_page = doc.load_page(start_page_idx)
         start_h = float(start_page.rect.height)
         start_y0 = max(0.0, float(start_anchor.y_top) - top_margin)
+        start_y0 = max(start_y0, scheme_content_y0(start_page_idx))
 
         if idx + 1 < len(main):
             end_page_idx, end_anchor = main[idx + 1]
@@ -292,7 +350,8 @@ def segment_document(
             segments.append(Segment(q_number=start_anchor.q_number, page_index=start_page_idx, y0_top=start_y0, y1_top=start_h))
             for pi in range(start_page_idx + 1, page_end):
                 page = doc.load_page(pi)
-                segments.append(Segment(q_number=start_anchor.q_number, page_index=pi, y0_top=0.0, y1_top=float(page.rect.height)))
+                y0 = scheme_content_y0(pi)
+                segments.append(Segment(q_number=start_anchor.q_number, page_index=pi, y0_top=y0, y1_top=float(page.rect.height)))
             continue
 
         if end_page_idx == start_page_idx:
@@ -308,14 +367,16 @@ def segment_document(
         # Full middle pages.
         for pi in range(start_page_idx + 1, int(end_page_idx)):
             page = doc.load_page(pi)
-            segments.append(Segment(q_number=start_anchor.q_number, page_index=pi, y0_top=0.0, y1_top=float(page.rect.height)))
+            y0 = scheme_content_y0(pi)
+            segments.append(Segment(q_number=start_anchor.q_number, page_index=pi, y0_top=y0, y1_top=float(page.rect.height)))
 
         # End page segment up to the next anchor.
         end_page = doc.load_page(int(end_page_idx))
         end_h = float(end_page.rect.height)
         y1 = max(0.0, min(end_h, float(end_anchor.y_top) - bottom_margin))
-        if y1 > 30.0:
-            segments.append(Segment(q_number=start_anchor.q_number, page_index=int(end_page_idx), y0_top=0.0, y1_top=y1))
+        y0 = scheme_content_y0(int(end_page_idx))
+        if y1 > y0 + 30.0:
+            segments.append(Segment(q_number=start_anchor.q_number, page_index=int(end_page_idx), y0_top=y0, y1_top=y1))
 
     return segments
 

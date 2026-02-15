@@ -277,6 +277,10 @@ def export_maths_sql(conn, out_path: Path) -> None:
 
     lines: list[str] = []
     lines.append("PRAGMA foreign_keys=ON;")
+    # Avoid clobbering production review edits:
+    # - Wipe only auto crops (including legacy rows where status is NULL).
+    # - Re-insert auto crops from the pipeline; reviewed crops are kept as-is.
+    lines.append("DELETE FROM maths_crops WHERE status IS NULL OR status = 'auto';")
 
     for table in tables:
         rows = list(conn.execute(f"SELECT * FROM {table}").fetchall())
@@ -293,7 +297,14 @@ def export_maths_sql(conn, out_path: Path) -> None:
                     v = v[-8000:]
                 values.append(sql_literal(v))
             values_sql = ", ".join(values)
-            lines.append(f"INSERT OR REPLACE INTO {table} ({col_sql}) VALUES ({values_sql});")
+            if table == "maths_questions":
+                # Preserve manual edits to labels/topics in production.
+                lines.append(f"INSERT OR IGNORE INTO {table} ({col_sql}) VALUES ({values_sql});")
+            elif table == "maths_crops":
+                # Preserve reviewed crops in production (conflicts will be ignored).
+                lines.append(f"INSERT OR IGNORE INTO {table} ({col_sql}) VALUES ({values_sql});")
+            else:
+                lines.append(f"INSERT OR REPLACE INTO {table} ({col_sql}) VALUES ({values_sql});")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text("\n".join(lines) + "\n", "utf-8")
