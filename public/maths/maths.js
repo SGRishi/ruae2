@@ -1141,8 +1141,23 @@ import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
     }
   }
 
+  function questionIdFromRoute() {
+    const path = routePath();
+    try {
+      if (path.startsWith('/q/')) {
+        return decodeURIComponent(path.slice('/q/'.length));
+      }
+      if (path.startsWith('/review/')) {
+        return decodeURIComponent(path.slice('/review/'.length));
+      }
+    } catch {
+      // Ignore malformed percent-encoding; fall back to active.question below.
+    }
+    return active.question && active.question.id;
+  }
+
   function findNeighborQuestionId(delta) {
-    const id = active.question && active.question.id;
+    const id = questionIdFromRoute();
     if (!id) return null;
     const idx = active.questionIndexById.get(id);
     if (idx == null) return null;
