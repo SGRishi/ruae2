@@ -1840,7 +1840,42 @@ function getSessionCookieToken(request) {
   return cookies[SESSION_COOKIE_NAME] || '';
 }
 
+function isTestAuthEnabled(env) {
+  return String(env.ALLOW_TEST_AUTH || '').trim().toLowerCase() === 'true';
+}
+
+function getTestAuthUser(request, env) {
+  if (!isTestAuthEnabled(env)) return null;
+  const raw = String(request.headers.get('x-test-auth') || '').trim().toLowerCase();
+  if (!raw) return null;
+
+  if (raw === 'approved') {
+    return {
+      id: 1,
+      email: 'approved-test-user',
+      status: 'approved',
+      approved: true,
+    };
+  }
+
+  if (raw === 'pending') {
+    return {
+      id: 2,
+      email: 'pending-test-user',
+      status: 'pending',
+      approved: false,
+    };
+  }
+
+  return null;
+}
+
 async function getCurrentUser(request, env, store, nowSeconds) {
+  const testUser = getTestAuthUser(request, env);
+  if (testUser) {
+    return { user: testUser, clearSession: false, tokenHash: null };
+  }
+
   const token = getSessionCookieToken(request);
   if (!isValidTokenShape(token)) {
     return { user: null, clearSession: Boolean(token) };
@@ -2086,8 +2121,10 @@ async function handleMatchWithAi(env, payload) {
 
   if (!response.ok) {
     const aiMessage = String(responseJson?.error?.message || 'AI request failed.');
+    // Avoid surfacing upstream auth codes as "user is not logged in" to the frontend.
+    const status = (response.status === 401 || response.status === 403) ? 502 : response.status;
     return {
-      status: response.status,
+      status,
       body: {
         ok: false,
         error: aiMessage.slice(0, 240),

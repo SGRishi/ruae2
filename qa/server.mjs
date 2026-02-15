@@ -17,6 +17,58 @@ const ORIGIN = `http://127.0.0.1:${PORT}`;
 const { env } = await createQaEnv(ORIGIN);
 const apiHandler = createApiHandler();
 
+const realFetch = globalThis.fetch;
+if (typeof realFetch === 'function') {
+  globalThis.fetch = async (input, init) => {
+    const url = typeof input === 'string'
+      ? input
+      : (input && typeof input.url === 'string' ? input.url : '');
+
+    if (url === 'https://api.openai.com/v1/responses') {
+      const headers = new Headers(init?.headers || (input && input.headers) || {});
+      const auth = String(headers.get('Authorization') || '');
+      const expected = `Bearer ${String(env.OPENAI_API_KEY || '')}`;
+
+      if (!expected || auth !== expected) {
+        return new Response(
+          JSON.stringify({ error: { message: 'QA stub: missing/invalid OpenAI API key.' } }),
+          { status: 401, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+        );
+      }
+
+      let bodyText = '';
+      try {
+        const body = init?.body;
+        if (typeof body === 'string') bodyText = body;
+        else if (body instanceof Uint8Array) bodyText = Buffer.from(body).toString('utf8');
+        else if (body instanceof ArrayBuffer) bodyText = Buffer.from(body).toString('utf8');
+        else if (body != null) bodyText = String(body);
+      } catch {
+        bodyText = '';
+      }
+
+      let schemaName = '';
+      try {
+        const parsed = bodyText ? JSON.parse(bodyText) : null;
+        schemaName = String(parsed?.text?.format?.name || '');
+      } catch {
+        schemaName = '';
+      }
+
+      const output = schemaName === 'mark_answer'
+        ? { score: 1, max: 2, reasoning: 'QA stub feedback: clear point and relevant paraphrase.' }
+        : { quote: 'almond trees', lineNumber: 1 };
+
+      return new Response(
+        JSON.stringify({ output_text: JSON.stringify(output) }),
+        { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+
+    return realFetch(input, init);
+  };
+}
+
 function contentTypeForPath(p) {
   const lower = String(p).toLowerCase();
   if (lower.endsWith('.html')) return 'text/html; charset=utf-8';
@@ -131,4 +183,3 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, '127.0.0.1', () => {
   process.stdout.write(`qa server listening on ${ORIGIN}\n`);
 });
-

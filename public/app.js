@@ -283,7 +283,7 @@ function renderQuestions(paper) {
     section.appendChild(textarea);
 
     const toggleButton = document.createElement('button');
-    toggleButton.textContent = 'Show answers';
+    toggleButton.textContent = 'Check answer';
     section.appendChild(toggleButton);
 
     const schemeWrapper = document.createElement('div');
@@ -318,7 +318,7 @@ function renderQuestions(paper) {
         checkAnswer(question, textarea.value, aiResult);
       } else {
         schemeWrapper.classList.add('hidden');
-        toggleButton.textContent = 'Show answers';
+        toggleButton.textContent = 'Check answer';
       }
     });
 

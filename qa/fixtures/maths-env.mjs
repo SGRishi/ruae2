@@ -330,6 +330,9 @@ export async function createQaEnv(origin) {
     ...QA_SECRETS,
     ALLOWED_ORIGINS: origin ? `${origin},https://rishisubjects.co.uk` : 'https://rishisubjects.co.uk',
     REQUIRE_MANUAL_APPROVAL: 'false',
+    ALLOW_TEST_AUTH: 'true',
+    OPENAI_API_KEY: 'qa-openai-test-key',
+    OPENAI_MODEL: 'gpt-4o-mini',
     AUTH_STORE: authStore,
     MATHS_STORE: mathsStore,
     MATHS_ASSETS: assets,
@@ -345,4 +348,3 @@ export async function createQaEnv(origin) {
 
   return { env, fixtures };
 }
-
