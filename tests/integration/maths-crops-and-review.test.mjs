@@ -75,7 +75,10 @@ async function apiCall(handler, env, cookieJar, path, options = {}) {
 }
 
 async function apiBytes(handler, env, cookieJar, path, options = {}) {
-  const { response } = await apiCall(handler, env, cookieJar, path, { ...options, origin: options.origin ?? 'https://rishisubjects.co.uk' });
+  const { response } = await apiCall(handler, env, cookieJar, path, {
+    ...options,
+    origin: options.origin ?? 'https://rishisubjects.co.uk',
+  });
   const bytes = new Uint8Array(await response.arrayBuffer());
   return { response, bytes };
 }
@@ -85,10 +88,12 @@ test('GET /api/maths/crops/:id.png returns image/png and non-zero bytes', async 
 
   const assets = createMemoryAssets();
   const initialKey = 'maths/crops/2023/2/q_2023_2_1/q_01.png';
-  const pngBytes = Uint8Array.from(Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/lGv9owAAAABJRU5ErkJggg==',
-    'base64'
-  ));
+  const pngBytes = Uint8Array.from(
+    Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/lGv9owAAAABJRU5ErkJggg==',
+      'base64'
+    )
+  );
   await assets.put(initialKey, pngBytes, { metadata: { contentType: 'image/png' } });
 
   const mathsStore = createMathsMemoryStore({
@@ -155,7 +160,12 @@ test('GET /api/maths/crops/:id.png returns image/png and non-zero bytes', async 
   assert.equal(question.response.status, 200);
   const cropId = question.data.question.questionCrops[0].id;
 
-  const png = await apiBytes(handler, env, jar, `/api/maths/crops/${encodeURIComponent(cropId)}.png`);
+  const png = await apiBytes(
+    handler,
+    env,
+    jar,
+    `/api/maths/crops/${encodeURIComponent(cropId)}.png`
+  );
   assert.equal(png.response.status, 200);
   assert.equal((png.response.headers.get('content-type') || '').includes('image/png'), true);
   assert.ok(png.bytes.byteLength > 0);
@@ -166,10 +176,12 @@ test('review save updates crop rect + regenerates crop blob', async () => {
 
   const assets = createMemoryAssets();
   const oldKey = 'maths/crops/2023/2/q_2023_2_1/q_01.png';
-  const pngBytes = Uint8Array.from(Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/lGv9owAAAABJRU5ErkJggg==',
-    'base64'
-  ));
+  const pngBytes = Uint8Array.from(
+    Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/lGv9owAAAABJRU5ErkJggg==',
+      'base64'
+    )
+  );
   await assets.put(oldKey, pngBytes, { metadata: { contentType: 'image/png' } });
 
   const mathsStore = createMathsMemoryStore({
@@ -240,7 +252,12 @@ test('review save updates crop rect + regenerates crop blob', async () => {
   const crop = before.data.question.questionCrops[0];
   assert.equal(crop.storageKey, oldKey);
 
-  const beforePng = await apiBytes(handler, env, jar, `/api/maths/crops/${encodeURIComponent(crop.id)}.png`);
+  const beforePng = await apiBytes(
+    handler,
+    env,
+    jar,
+    `/api/maths/crops/${encodeURIComponent(crop.id)}.png`
+  );
   assert.equal(beforePng.response.status, 200);
 
   const save = await apiCall(handler, env, jar, '/api/maths/review/save', {
@@ -279,7 +296,12 @@ test('review save updates crop rect + regenerates crop blob', async () => {
   const newKey = updated.storageKey;
   assert.equal(assets.__unsafe_listKeys().includes(newKey), true);
 
-  const afterPng = await apiBytes(handler, env, jar, `/api/maths/crops/${encodeURIComponent(updated.id)}.png`);
+  const afterPng = await apiBytes(
+    handler,
+    env,
+    jar,
+    `/api/maths/crops/${encodeURIComponent(updated.id)}.png`
+  );
   assert.equal(afterPng.response.status, 200);
   assert.ok(afterPng.bytes.byteLength > 0);
 

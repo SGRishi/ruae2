@@ -223,5 +223,10 @@ test('maths endpoints block authenticated but unapproved sessions', async () => 
   const jar = new Map([['ruae_session', token]]);
   const years = await apiCall(handler, env, jar, '/api/maths/years');
   assert.equal(years.response.status, 403);
-  assert.equal(String(years.data.error || '').toLowerCase().includes('approved'), true);
+  assert.equal(
+    String(years.data.error || '')
+      .toLowerCase()
+      .includes('approved'),
+    true
+  );
 });

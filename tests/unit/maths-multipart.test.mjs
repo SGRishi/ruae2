@@ -87,4 +87,3 @@ test('multi-part question crops are kept together under one question id', async 
   assert.equal(q.questionCrops[0].pageIndex, 0);
   assert.equal(q.questionCrops[1].pageIndex, 1);
 });
-
