@@ -37,7 +37,7 @@ test('approved user can access /maths, filter, URL sync, and keyboard shortcuts'
   // D toggles datasheet modal.
   await page.keyboard.press('D');
   await expect(page.getByTestId('maths-datasheet-modal')).toBeVisible();
-  await expect(page.getByTestId('maths-datasheet-empty')).toContainText(/no datasheet/i);
+  await expect(page.getByTestId('maths-datasheet-canvas')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('maths-modal-root')).toBeEmpty();
 
@@ -54,4 +54,3 @@ test('approved user can access /maths, filter, URL sync, and keyboard shortcuts'
   await page.keyboard.press('R');
   await expect(page).toHaveURL(/\/maths\/q\//);
 });
-

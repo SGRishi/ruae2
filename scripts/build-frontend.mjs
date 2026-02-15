@@ -37,6 +37,16 @@ async function run() {
   await mkdir(distDir, { recursive: true });
   await cp(publicDir, distDir, { recursive: true });
 
+  // Extra static assets served from the site root (Pages). Keep this list small.
+  const extraFiles = ['Higher-Maths-Exam-Formulae-List.pdf'];
+  for (const filename of extraFiles) {
+    try {
+      await cp(path.join(rootDir, filename), path.join(distDir, filename));
+    } catch {
+      // Optional file; ignore if missing in dev forks.
+    }
+  }
+
   const apiBase = resolveApiBase();
   // Only set API_BASE when explicitly configured. When omitted, the auth client
   // falls back to its production default (https://api.rishisubjects.co.uk) on

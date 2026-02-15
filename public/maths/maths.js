@@ -4,6 +4,15 @@ import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
   const api = window.RuaeApi;
 
   const BASE_PATH = '/maths';
+  const STATIC_DATASHEET_PATH = '/Higher-Maths-Exam-Formulae-List.pdf';
+
+  function toSameOriginUrl(pathname) {
+    try {
+      return new URL(String(pathname || ''), window.location.origin).toString();
+    } catch {
+      return String(pathname || '');
+    }
+  }
 
   function toApiAssetUrl(input) {
     const raw = String(input || '').trim();
@@ -1122,7 +1131,9 @@ import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
       if (paper) params.set('paper', paper);
       const data = await apiGet(`/api/maths/datasheet?${params.toString()}`);
       if (!data) return;
-      active.datasheet.pdfUrl = String(data.pdfUrl || '');
+      const apiPdfUrl = String(data.pdfUrl || '');
+      // Fallback to the static formula list shipped with the Pages frontend.
+      active.datasheet.pdfUrl = apiPdfUrl || toSameOriginUrl(STATIC_DATASHEET_PATH);
       active.datasheet.fileId = data.fileId || null;
 
       if (active.datasheet.pdfUrl) {
@@ -1131,11 +1142,20 @@ import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
       }
       openDatasheetModal();
     } catch (error) {
-      setStatus(error.message || 'Unable to load datasheet.', 'error');
-      active.datasheet.pdfUrl = '';
-      active.datasheet.pageCount = 0;
-      active.datasheet.doc = null;
-      openDatasheetModal();
+      // If the API call fails (or returns a URL that cannot be loaded), fall back to the shipped formula list.
+      try {
+        active.datasheet.pdfUrl = toSameOriginUrl(STATIC_DATASHEET_PATH);
+        active.datasheet.doc = await loadPdfDocument(active.datasheet.pdfUrl);
+        active.datasheet.pageCount = active.datasheet.doc.numPages || 0;
+        openDatasheetModal();
+      } catch (fallbackError) {
+        console.warn('Datasheet fallback failed', fallbackError);
+        setStatus(error.message || 'Unable to load datasheet.', 'error');
+        active.datasheet.pdfUrl = '';
+        active.datasheet.pageCount = 0;
+        active.datasheet.doc = null;
+        openDatasheetModal();
+      }
     }
   }
 

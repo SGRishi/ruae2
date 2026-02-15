@@ -4,11 +4,154 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Rishi Subjects</title>
+    <meta
+      name="description"
+      content="Study RUAE and Higher Maths without tab chaos: text, questions, and mark scheme in one place, plus AI marking and a searchable past-paper bank."
+    />
+    <link rel="stylesheet" href="/home.css?v=20260215" />
+    <link rel="preload" as="image" href="/media/hero-study.jpg" />
   </head>
-  <body>
-    <h1>welcome to rishi subjects</h1>
-    <p><a href="/login/">Create account / Login</a></p>
-    <p><a href="/ruae">Go to the RUAE page</a></p>
-    <p><a href="/maths">Go to the Maths question bank</a></p>
+  <body class="home">
+    <a class="skip-link" href="#content">Skip to content</a>
+
+    <header class="nav">
+      <div class="nav-inner">
+        <a class="brand" href="/" aria-label="Rishi Subjects home">Rishi Subjects</a>
+
+        <nav class="nav-links" aria-label="Primary">
+          <a class="nav-link" href="/ruae">RUAE</a>
+          <a class="nav-link" href="/maths">Maths</a>
+          <a class="nav-link nav-cta" href="/login/">Create account / Login</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="content" class="wrap">
+      <section class="hero" aria-label="Homepage intro">
+        <div class="hero-copy">
+          <p class="kicker">RUAE + Higher Maths</p>
+          <h1>Stop juggling tabs. Start actually studying.</h1>
+          <p class="lede">
+            Instead of opening one tab for the text, another for the questions, and a third for the mark scheme, it is
+            all broken down into one clean flow.
+          </p>
+
+          <div class="pill-row" role="list" aria-label="Key benefits">
+            <div class="pill" role="listitem">Text + questions + mark scheme together</div>
+            <div class="pill" role="listitem">AI marking for instant feedback</div>
+            <div class="pill" role="listitem">Searchable Maths past-paper bank</div>
+          </div>
+
+          <div class="actions">
+            <a class="btn primary" href="/login/">Create account / Login</a>
+            <a class="btn" href="/ruae">Go to RUAE</a>
+            <a class="btn" href="/maths">Go to Maths</a>
+          </div>
+
+          <p class="fineprint">
+            Access is <strong>£2</strong>, and it is worth your money.
+            <span class="muted">
+              Once you pay in person, I will approve your account.
+              This covers the OpenAI tokens and the effort spent building and maintaining the site.
+            </span>
+          </p>
+        </div>
+
+        <div class="hero-media" aria-hidden="true">
+          <div class="hero-image">
+            <img
+              src="/media/hero-study.jpg"
+              alt=""
+              width="1600"
+              height="1065"
+              loading="eager"
+              decoding="async"
+              fetchpriority="high"
+            />
+          </div>
+          <div class="hero-caption">
+            <div class="caption-title">Everything in one place</div>
+            <div class="caption-text">
+              No more switching between PDFs, question sheets, and marking instructions. One page. One scroll. One focus.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid" aria-label="Features">
+        <article class="card">
+          <h2 class="card-title">RUAE, but organised</h2>
+          <p class="card-text">
+            Pick a year and paper, then work through questions with the relevant lines and marking instructions right
+            there beside you.
+          </p>
+          <ul class="checklist">
+            <li>Questions grouped with the exact bit of text you need</li>
+            <li>Mark scheme views that are readable, not tiny PDF screenshots</li>
+            <li>AI mode for quote checks and marking answers</li>
+          </ul>
+          <a class="card-link" href="/ruae">Open RUAE practice</a>
+        </article>
+
+        <article class="card">
+          <h2 class="card-title">Maths past papers, searchable</h2>
+          <p class="card-text">
+            Find questions by year, paper, or keyword. Open a question and see the answer when you are ready.
+          </p>
+          <ul class="checklist">
+            <li>Fast filters and URL sync so you can share exactly what you are revising</li>
+            <li>Keyboard shortcuts for speed: <kbd>/</kbd> search, <kbd>A</kbd> answers, <kbd>D</kbd> datasheet</li>
+            <li>Built-in diagnostics to spot weak topics</li>
+          </ul>
+          <a class="card-link" href="/maths">Open Maths question bank</a>
+        </article>
+
+        <article class="card accent">
+          <h2 class="card-title">AI marking that saves time</h2>
+          <p class="card-text">
+            Get instant marking, a clear score, and feedback you can act on. That means more practice cycles in less
+            time.
+          </p>
+          <ul class="checklist">
+            <li>Immediate feedback instead of waiting to ask someone</li>
+            <li>Consistent marking criteria every time you practise</li>
+            <li>Spot missing evidence and tighten your explanation</li>
+          </ul>
+          <a class="card-link" href="/login/">Get access for £2</a>
+        </article>
+      </section>
+
+      <section class="pricing" aria-label="Pricing">
+        <div class="price-card">
+          <div class="price-left">
+            <h2 class="price-title">Simple pricing</h2>
+            <p class="price-text">
+              One small payment to unlock RUAE and Maths plus AI marking.
+              Accounts are manually approved after in-person payment.
+            </p>
+            <div class="price-actions">
+              <a class="btn primary" href="/login/">Create account / Login</a>
+              <a class="btn ghost" href="/ruae">Try RUAE</a>
+              <a class="btn ghost" href="/maths">Try Maths</a>
+            </div>
+          </div>
+
+          <div class="price-right" aria-label="Price">
+            <div class="price-amount">£2</div>
+            <div class="price-sub">Covers OpenAI tokens + build effort</div>
+            <div class="price-sub">Pay in person, then approval is done</div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <div class="footer-links" aria-label="Quick links">
+          <a href="/login/">Create account / Login</a>
+          <a href="/ruae">RUAE</a>
+          <a href="/maths">Maths</a>
+        </div>
+        <div class="footer-meta">Built to remove the annoying parts of revision: tab switching, messy PDFs, and slow feedback.</div>
+      </footer>
+    </main>
   </body>
 </html>
