@@ -16,12 +16,16 @@
   const api = window.RuaeApi;
   if (!api || typeof api.apiRequest !== 'function') return;
 
+  const bodyEl = document.body;
+  const returningBg = document.querySelector('[data-testid="home-returning-bg"]');
   const sessionPanel = document.querySelector('[data-testid="home-session-panel"]');
   const sessionGreeting = document.querySelector('[data-testid="home-session-greeting"]');
   const guestActions = document.querySelector('[data-testid="home-guest-actions"]');
   const loginCtas = Array.from(document.querySelectorAll('[data-auth-login-link]'));
 
   function setLoggedOutState() {
+    if (bodyEl) bodyEl.classList.remove('home--logged-in');
+    if (returningBg) returningBg.hidden = true;
     if (sessionPanel) sessionPanel.hidden = true;
     if (guestActions) guestActions.hidden = false;
 
@@ -37,6 +41,8 @@
   function setLoggedInState(username) {
     const safeName = String(username || '').trim() || 'User';
 
+    if (bodyEl) bodyEl.classList.add('home--logged-in');
+    if (returningBg) returningBg.hidden = false;
     if (sessionPanel) sessionPanel.hidden = false;
     if (sessionGreeting) sessionGreeting.textContent = `Welcome back, ${safeName}`;
     if (guestActions) guestActions.hidden = true;

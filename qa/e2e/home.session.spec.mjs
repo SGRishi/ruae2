@@ -15,6 +15,8 @@ test.describe('homepage session experience', () => {
     await expect(page.getByTestId('home-login-link')).toContainText(/create account \/ login/i);
     await expect(page.getByTestId('home-guest-actions')).toBeVisible();
     await expect(page.getByTestId('home-session-panel')).toBeHidden();
+    await expect(page.getByTestId('home-returning-bg')).toBeHidden();
+    await expect(page.locator('.hero')).toBeVisible();
   });
 
   test('approved logged-in user sees welcome state with RUAE/Maths/Countdown shortcuts', async ({ page, context }) => {
@@ -31,6 +33,8 @@ test.describe('homepage session experience', () => {
     await expect(page.getByTestId('home-session-countdown')).toBeVisible();
     await expect(page.getByTestId('home-guest-actions')).toBeHidden();
     await expect(page.getByTestId('home-login-link')).toContainText(/welcome back/i);
+    await expect(page.getByTestId('home-returning-bg')).toBeVisible();
+    await expect(page.locator('.hero')).toBeHidden();
   });
 
   test('logged-in user can open countdown from homepage shortcut without login redirect', async ({ page, context }) => {

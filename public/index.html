@@ -13,6 +13,7 @@
   </head>
   <body class="home">
     <a class="skip-link" href="#content">Skip to content</a>
+    <div class="home-returning-bg" data-testid="home-returning-bg" hidden></div>
 
     <header class="nav">
       <div class="nav-inner">
@@ -30,6 +31,16 @@
     </header>
 
     <main id="content" class="wrap">
+      <section class="returning-home" data-testid="home-session-panel" hidden>
+        <p class="returning-kicker">Rishi Subjects</p>
+        <h1 class="returning-title" data-testid="home-session-greeting"></h1>
+        <div class="returning-actions">
+          <a class="btn primary" href="/ruae" data-testid="home-session-ruae">English (RUAE)</a>
+          <a class="btn" href="/maths" data-testid="home-session-maths">Maths</a>
+          <a class="btn" href="/countdown/" data-testid="home-session-countdown">Countdown</a>
+        </div>
+      </section>
+
       <section class="hero" aria-label="Homepage intro">
         <div class="hero-copy">
           <p class="kicker">RUAE + Higher Maths</p>
@@ -43,15 +54,6 @@
             <div class="pill" role="listitem">Text + questions + mark scheme together</div>
             <div class="pill" role="listitem">AI marking for instant feedback</div>
             <div class="pill" role="listitem">Searchable Maths past-paper bank</div>
-          </div>
-
-          <div class="session-panel" data-testid="home-session-panel" hidden>
-            <p class="session-greeting" data-testid="home-session-greeting"></p>
-            <div class="session-actions">
-              <a class="btn primary" href="/ruae" data-testid="home-session-ruae">English (RUAE)</a>
-              <a class="btn" href="/maths" data-testid="home-session-maths">Maths</a>
-              <a class="btn" href="/countdown/" data-testid="home-session-countdown">Countdown</a>
-            </div>
           </div>
 
           <div class="actions" data-testid="home-guest-actions">
