@@ -267,4 +267,20 @@ test.describe('countdown route', () => {
     await expect(page.getByTestId('timer-error')).toContainText(/expired/i);
     await expect(page.getByTestId('countdown-main')).toBeVisible();
   });
+
+  test('13) fallback route restore from /countdown/index.html?r=... keeps tokenized timer links working', async ({
+    page,
+  }) => {
+    await page.goto('/countdown/', { waitUntil: 'domcontentloaded' });
+    const shareUrl = await createTimer(page, { minutes: 9, isPublic: true });
+    const restoredPath = toPathnameAndSearch(shareUrl);
+
+    await page.goto(`/countdown/index.html?r=${encodeURIComponent(restoredPath)}`, {
+      waitUntil: 'domcontentloaded',
+    });
+
+    await expect(page).toHaveURL(new RegExp(restoredPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    await expect(page.getByTestId('timer-error')).toBeHidden();
+    await expect(page.getByTestId('countdown-clock')).toBeVisible();
+  });
 });

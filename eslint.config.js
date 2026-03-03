@@ -3,7 +3,14 @@ import globals from 'globals';
 
 export default [
   {
-    ignores: ['dist/**', 'node_modules/**', '.wrangler/**', 'public/maths/vendor/**'],
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      '.wrangler/**',
+      'public/maths/vendor/**',
+      'test-results/**',
+      'playwright-report/**',
+    ],
   },
   js.configs.recommended,
   {

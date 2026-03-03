@@ -29,6 +29,18 @@ let currentBackgroundIndex = 0;
 let testNowMs =
   TEST_CONFIG && Number.isFinite(Number(TEST_CONFIG.nowMs)) ? Number(TEST_CONFIG.nowMs) : Date.now();
 
+function maybeRestoreFallbackRoute() {
+  const url = new URL(window.location.href);
+  if (url.pathname !== '/countdown/index.html') return;
+
+  const rawRoute = String(url.searchParams.get('r') || '').trim();
+  if (!rawRoute || !rawRoute.startsWith('/countdown/')) return;
+
+  // When static hosting falls back unknown paths to homepage, route users back
+  // through countdown/index.html and restore the original tokenized URL here.
+  window.history.replaceState(null, '', rawRoute);
+}
+
 function getNowMs() {
   return TEST_CONFIG ? testNowMs : Date.now();
 }
@@ -329,6 +341,7 @@ function setupIntervals() {
 }
 
 function init() {
+  maybeRestoreFallbackRoute();
   setBackground(currentBackgroundIndex);
   setupEvents();
   initializeFromRoute();

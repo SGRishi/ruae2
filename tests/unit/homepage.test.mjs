@@ -14,6 +14,8 @@ test('homepage uses the new layout and keeps the key navigation links', async ()
   assert.match(homepage, /href="\/login\//i);
   assert.match(homepage, /href="\/ruae\b/i);
   assert.match(homepage, /href="\/maths\b/i);
+  assert.match(homepage, /href="\/countdown\/"/i);
+  assert.match(homepage, /src="\/home\.js\?v=/i);
 });
 
 test('homepage buttons are real links (no missing href)', async () => {

@@ -21,7 +21,10 @@
         <nav class="nav-links" aria-label="Primary">
           <a class="nav-link" href="/ruae">RUAE</a>
           <a class="nav-link" href="/maths">Maths</a>
-          <a class="nav-link nav-cta" href="/login/">Create account / Login</a>
+          <a class="nav-link" href="/countdown/">Countdown</a>
+          <a class="nav-link nav-cta" href="/login/" data-testid="home-login-link" data-auth-login-link
+            >Create account / Login</a
+          >
         </nav>
       </div>
     </header>
@@ -42,10 +45,20 @@
             <div class="pill" role="listitem">Searchable Maths past-paper bank</div>
           </div>
 
-          <div class="actions">
+          <div class="session-panel" data-testid="home-session-panel" hidden>
+            <p class="session-greeting" data-testid="home-session-greeting"></p>
+            <div class="session-actions">
+              <a class="btn primary" href="/ruae" data-testid="home-session-ruae">English (RUAE)</a>
+              <a class="btn" href="/maths" data-testid="home-session-maths">Maths</a>
+              <a class="btn" href="/countdown/" data-testid="home-session-countdown">Countdown</a>
+            </div>
+          </div>
+
+          <div class="actions" data-testid="home-guest-actions">
             <a class="btn primary" href="/login/">Create account / Login</a>
             <a class="btn" href="/ruae">Go to RUAE</a>
             <a class="btn" href="/maths">Go to Maths</a>
+            <a class="btn" href="/countdown/">Go to Countdown</a>
           </div>
 
           <p class="fineprint">
@@ -149,9 +162,14 @@
           <a href="/login/">Create account / Login</a>
           <a href="/ruae">RUAE</a>
           <a href="/maths">Maths</a>
+          <a href="/countdown/">Countdown</a>
         </div>
         <div class="footer-meta">Built to remove the annoying parts of revision: tab switching, messy PDFs, and slow feedback.</div>
       </footer>
     </main>
+
+    <script src="/runtime-config.js?v=20260214"></script>
+    <script src="/auth-client.js?v=20260214"></script>
+    <script src="/home.js?v=20260303"></script>
   </body>
 </html>
