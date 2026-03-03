@@ -188,25 +188,27 @@ CI runs these steps on push/PR via `.github/workflows/ci.yml`.
 
 Playwright browser install (one-time on a machine/CI image):
 
-````bash
+```bash
 npx playwright install --with-deps
+```
 
 Countdown E2E notes:
 
 - Countdown coverage lives in `tests/e2e/countdown.spec.mjs` (loaded by `qa/e2e/countdown.spec.mjs`).
+- Main scripts:
+  - `npm run test:e2e`
+  - `npm run test:e2e:ui`
 - Run only countdown tests locally with:
 
 ```bash
 npm run test:e2e -- --grep countdown
-````
+```
 
 - Use an external target URL when needed (for example in CI against a deployed env):
 
 ```bash
 PLAYWRIGHT_BASE_URL=https://rishisubjects.co.uk npm run test:e2e -- --grep countdown
 ```
-
-````
 
 ## Deployment
 
@@ -216,7 +218,7 @@ After deployment, run:
 
 ```bash
 npm run smoke:deploy
-````
+```
 
 GitHub smoke workflow: `.github/workflows/smoke-deploy.yml`.
 

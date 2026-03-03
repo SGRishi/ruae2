@@ -9,7 +9,7 @@
       content="Create a shareable countdown timer with nature backgrounds, readable dark overlays, and optional relaxing ambience."
     />
     <meta name="robots" content="noindex,nofollow" data-testid="robots-meta" />
-    <link rel="stylesheet" href="/countdown/countdown.css" />
+    <link rel="stylesheet" href="/countdown/countdown.css?v=20260304" />
   </head>
   <body class="countdown-page">
     <div class="countdown-background" data-testid="background" aria-hidden="true"></div>
@@ -52,6 +52,12 @@
         <button type="button" id="copyShareUrl" data-testid="copy-share-url">Copy</button>
       </div>
 
+      <div class="share-row">
+        <label for="embedCode">Embed code</label>
+        <textarea id="embedCode" data-testid="embed-code" rows="3" readonly></textarea>
+        <button type="button" id="copyEmbedCode" data-testid="copy-embed-code">Copy embed code</button>
+      </div>
+
       <div class="audio-row">
         <audio id="audioPlayer" data-testid="audio-player" preload="none" loop>
           <source
@@ -68,6 +74,6 @@
       <p class="error-message" data-testid="timer-error" hidden></p>
     </main>
 
-    <script src="/countdown/countdown.js" type="module"></script>
+    <script src="/countdown/countdown.js?v=20260304" type="module"></script>
   </body>
 </html>

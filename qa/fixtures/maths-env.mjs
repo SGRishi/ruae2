@@ -1,4 +1,4 @@
-import { createMemoryStore, createMathsMemoryStore } from '../../worker.js';
+import { createMemoryStore, createMathsMemoryStore, createMemoryCountdownStore } from '../../worker.js';
 import { createMemoryAssets } from './memory-assets.mjs';
 
 function bytesToBase64(bytes) {
@@ -318,6 +318,7 @@ export async function createQaEnv(origin) {
   };
 
   const mathsStore = createMathsMemoryStore(maths);
+  const countdownStore = createMemoryCountdownStore();
   const assets = createMemoryAssets();
 
   const png = pngBytes();
@@ -335,6 +336,7 @@ export async function createQaEnv(origin) {
     OPENAI_MODEL: 'gpt-4o-mini',
     AUTH_STORE: authStore,
     MATHS_STORE: mathsStore,
+    COUNTDOWN_STORE: countdownStore,
     MATHS_ASSETS: assets,
   };
 

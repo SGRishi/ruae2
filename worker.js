@@ -19,6 +19,7 @@ const RATE_LIMIT_MATCH_IP_MAX = 40;
 const LOCKOUT_START_AT_FAILURE = 5;
 const LOCKOUT_MAX_SECONDS = 60 * 60;
 const ADMIN_REVIEW_LIMIT = 200;
+const COUNTDOWN_MAX_FUTURE_MS = 1000 * 60 * 60 * 24 * 365 * 5;
 
 const DEFAULT_ALLOWED_ORIGINS = new Set(['https://rishisubjects.co.uk']);
 const DEV_LOCAL_ORIGINS = new Set([
@@ -112,6 +113,9 @@ function serializeCookie(name, value, options = {}) {
   const parts = [`${name}=${encodeURIComponent(value)}`];
   parts.push(`Path=${options.path || '/'}`);
   parts.push(`SameSite=${options.sameSite || 'Lax'}`);
+  if (options.domain) {
+    parts.push(`Domain=${options.domain}`);
+  }
   if (typeof options.maxAge === 'number') {
     parts.push(`Max-Age=${Math.max(0, Math.floor(options.maxAge))}`);
   }
@@ -126,9 +130,22 @@ function secureCookieForUrl(url, env) {
   return url.protocol === 'https:';
 }
 
+function cookieDomainForUrl(url, env) {
+  const explicit = String(env.COOKIE_DOMAIN || '').trim();
+  if (explicit) return explicit;
+
+  const host = String(url.hostname || '').toLowerCase();
+  if (host === 'rishisubjects.co.uk' || host.endsWith('.rishisubjects.co.uk')) {
+    return '.rishisubjects.co.uk';
+  }
+
+  return '';
+}
+
 function buildSessionCookie(token, url, env) {
   return serializeCookie(SESSION_COOKIE_NAME, token, {
     path: '/',
+    domain: cookieDomainForUrl(url, env),
     sameSite: 'Lax',
     secure: secureCookieForUrl(url, env),
     httpOnly: true,
@@ -140,6 +157,7 @@ function buildSessionCookie(token, url, env) {
 function clearSessionCookie(url, env) {
   return serializeCookie(SESSION_COOKIE_NAME, '', {
     path: '/',
+    domain: cookieDomainForUrl(url, env),
     sameSite: 'Lax',
     secure: secureCookieForUrl(url, env),
     httpOnly: true,
@@ -151,6 +169,7 @@ function clearSessionCookie(url, env) {
 function buildCsrfCookie(token, url, env) {
   return serializeCookie(CSRF_COOKIE_NAME, token, {
     path: '/',
+    domain: cookieDomainForUrl(url, env),
     sameSite: 'Lax',
     secure: secureCookieForUrl(url, env),
     httpOnly: false,
@@ -1030,6 +1049,170 @@ export function createMemoryStore(seed = {}) {
           sessionsByTokenHash.delete(tokenHash);
         }
       }
+    },
+  };
+}
+
+function normalizeCountdownId(value) {
+  const id = String(value || '').trim();
+  if (!/^[A-Za-z0-9_-]{6,120}$/.test(id)) return '';
+  return id;
+}
+
+function normalizeCountdownToken(value) {
+  const token = String(value || '').trim();
+  if (!/^[A-Za-z0-9_-]{16,200}$/.test(token)) return '';
+  return token;
+}
+
+function normalizeCountdownDeadlineMs(value) {
+  const deadlineMs = Number(value);
+  if (!Number.isFinite(deadlineMs)) return null;
+  return Math.floor(deadlineMs);
+}
+
+function countdownRowToTimer(row) {
+  if (!row) return null;
+  return {
+    id: normalizeCountdownId(row.id),
+    token: normalizeCountdownToken(row.token),
+    deadlineMs: Number(row.deadline_ms),
+    isPublic: Boolean(Number(row.is_public)),
+    createdAtMs: Number(row.created_at_ms),
+    updatedAtMs: Number(row.updated_at_ms),
+  };
+}
+
+function generateCountdownId() {
+  return `ctd_${randomToken(10)}`;
+}
+
+function generateCountdownToken() {
+  return randomToken(24);
+}
+
+function createCountdownD1Store(db) {
+  if (!db || typeof db.prepare !== 'function') {
+    throw new Error('DB binding is missing or invalid.');
+  }
+
+  return {
+    async createTimer(record) {
+      const id = normalizeCountdownId(record?.id);
+      const token = normalizeCountdownToken(record?.token);
+      const deadlineMs = normalizeCountdownDeadlineMs(record?.deadlineMs);
+      const isPublic = Boolean(record?.isPublic);
+      const createdAtMs = Number(record?.createdAtMs);
+      const updatedAtMs = Number(record?.updatedAtMs);
+
+      if (!id || !token || !Number.isFinite(deadlineMs) || !Number.isFinite(createdAtMs) || !Number.isFinite(updatedAtMs)) {
+        throw new Error('Invalid countdown timer payload.');
+      }
+
+      await db.prepare(
+        `INSERT INTO countdown_timers (id, token, deadline_ms, is_public, created_at_ms, updated_at_ms)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
+      )
+        .bind(id, token, deadlineMs, isPublic ? 1 : 0, createdAtMs, updatedAtMs)
+        .run();
+
+      return this.getTimerById(id);
+    },
+
+    async getTimerById(timerId) {
+      const id = normalizeCountdownId(timerId);
+      if (!id) return null;
+      const row = await db.prepare(
+        `SELECT id, token, deadline_ms, is_public, created_at_ms, updated_at_ms
+         FROM countdown_timers
+         WHERE id = ?1
+         LIMIT 1`
+      )
+        .bind(id)
+        .first();
+      return countdownRowToTimer(row);
+    },
+
+    async setTimerVisibility(timerId, isPublic, updatedAtMs) {
+      const id = normalizeCountdownId(timerId);
+      if (!id) return null;
+      await db.prepare(
+        `UPDATE countdown_timers
+         SET is_public = ?1,
+             updated_at_ms = ?2
+         WHERE id = ?3`
+      )
+        .bind(isPublic ? 1 : 0, Number(updatedAtMs), id)
+        .run();
+      return this.getTimerById(id);
+    },
+  };
+}
+
+export function createMemoryCountdownStore(seed = {}) {
+  const timers = new Map();
+  const initialTimers = Array.isArray(seed.timers) ? seed.timers : [];
+
+  for (const item of initialTimers) {
+    const id = normalizeCountdownId(item?.id);
+    const token = normalizeCountdownToken(item?.token);
+    const deadlineMs = normalizeCountdownDeadlineMs(item?.deadlineMs);
+    const createdAtMs = Number(item?.createdAtMs);
+    const updatedAtMs = Number(item?.updatedAtMs ?? item?.createdAtMs);
+    if (!id || !token || !Number.isFinite(deadlineMs) || !Number.isFinite(createdAtMs) || !Number.isFinite(updatedAtMs)) {
+      continue;
+    }
+    timers.set(id, {
+      id,
+      token,
+      deadlineMs,
+      isPublic: Boolean(item?.isPublic),
+      createdAtMs,
+      updatedAtMs,
+    });
+  }
+
+  return {
+    async createTimer(record) {
+      const id = normalizeCountdownId(record?.id);
+      const token = normalizeCountdownToken(record?.token);
+      const deadlineMs = normalizeCountdownDeadlineMs(record?.deadlineMs);
+      const createdAtMs = Number(record?.createdAtMs);
+      const updatedAtMs = Number(record?.updatedAtMs);
+      if (!id || !token || !Number.isFinite(deadlineMs) || !Number.isFinite(createdAtMs) || !Number.isFinite(updatedAtMs)) {
+        throw new Error('Invalid countdown timer payload.');
+      }
+      const timer = {
+        id,
+        token,
+        deadlineMs,
+        isPublic: Boolean(record?.isPublic),
+        createdAtMs,
+        updatedAtMs,
+      };
+      timers.set(id, timer);
+      return { ...timer };
+    },
+
+    async getTimerById(timerId) {
+      const id = normalizeCountdownId(timerId);
+      if (!id) return null;
+      const timer = timers.get(id);
+      return timer ? { ...timer } : null;
+    },
+
+    async setTimerVisibility(timerId, isPublic, updatedAtMs) {
+      const id = normalizeCountdownId(timerId);
+      if (!id) return null;
+      const existing = timers.get(id);
+      if (!existing) return null;
+      const next = {
+        ...existing,
+        isPublic: Boolean(isPublic),
+        updatedAtMs: Number(updatedAtMs),
+      };
+      timers.set(id, next);
+      return { ...next };
     },
   };
 }
@@ -2217,6 +2400,118 @@ function toPublicUser(user) {
   };
 }
 
+function countdownClientTimer(timer, canEdit = false) {
+  if (!timer) return null;
+  return {
+    id: timer.id,
+    deadlineMs: Number(timer.deadlineMs),
+    isPublic: Boolean(timer.isPublic),
+    createdAtMs: Number(timer.createdAtMs),
+    updatedAtMs: Number(timer.updatedAtMs),
+    canEdit: Boolean(canEdit),
+  };
+}
+
+async function handleCountdownTimer(request, env, countdownStore, url, nowMs) {
+  if (!countdownStore) {
+    return jsonResponse(request, env, { ok: false, error: 'Countdown storage is not configured.' }, 503);
+  }
+
+  if (request.method === 'GET') {
+    const id = normalizeCountdownId(url.searchParams.get('id'));
+    if (!id) {
+      return jsonResponse(request, env, { ok: false, error: 'Timer id is required.' }, 400);
+    }
+
+    const timer = await countdownStore.getTimerById(id);
+    if (!timer) {
+      return jsonResponse(request, env, { ok: false, error: 'That timer link is invalid. Create a new countdown.' }, 404);
+    }
+
+    const providedToken = normalizeCountdownToken(url.searchParams.get('token'));
+    const hasValidToken = Boolean(providedToken) && timingSafeEqual(providedToken, timer.token);
+
+    if (!timer.isPublic && !hasValidToken) {
+      return jsonResponse(request, env, { ok: false, error: 'This timer is private. Use the exact private URL token.' }, 403);
+    }
+
+    return jsonResponse(request, env, {
+      ok: true,
+      timer: countdownClientTimer(timer, hasValidToken),
+      expired: Number(timer.deadlineMs) <= Number(nowMs),
+    });
+  }
+
+  if (request.method === 'POST') {
+    const body = await readJsonBody(request);
+    if (!body.ok) {
+      return jsonResponse(request, env, { ok: false, error: body.error }, body.status);
+    }
+
+    const deadlineMs = normalizeCountdownDeadlineMs(body.data.deadlineMs);
+    if (!Number.isFinite(deadlineMs)) {
+      return jsonResponse(request, env, { ok: false, error: 'Deadline must be a valid timestamp.' }, 400);
+    }
+    if (deadlineMs <= nowMs) {
+      return jsonResponse(request, env, { ok: false, error: 'Deadline must be in the future.' }, 400);
+    }
+    if (deadlineMs > nowMs + COUNTDOWN_MAX_FUTURE_MS) {
+      return jsonResponse(request, env, { ok: false, error: 'Deadline is too far in the future.' }, 400);
+    }
+
+    const timer = await countdownStore.createTimer({
+      id: generateCountdownId(),
+      token: generateCountdownToken(),
+      deadlineMs,
+      isPublic: Boolean(body.data.isPublic),
+      createdAtMs: nowMs,
+      updatedAtMs: nowMs,
+    });
+
+    return jsonResponse(request, env, {
+      ok: true,
+      timer: countdownClientTimer(timer, true),
+      ownerToken: timer.token,
+    });
+  }
+
+  if (request.method === 'PATCH') {
+    const body = await readJsonBody(request);
+    if (!body.ok) {
+      return jsonResponse(request, env, { ok: false, error: body.error }, body.status);
+    }
+
+    const id = normalizeCountdownId(body.data.id);
+    const token = normalizeCountdownToken(body.data.token);
+    if (!id || !token) {
+      return jsonResponse(request, env, { ok: false, error: 'Timer id and token are required.' }, 400);
+    }
+    if (typeof body.data.isPublic !== 'boolean') {
+      return jsonResponse(request, env, { ok: false, error: 'isPublic must be a boolean.' }, 400);
+    }
+
+    const existing = await countdownStore.getTimerById(id);
+    if (!existing) {
+      return jsonResponse(request, env, { ok: false, error: 'That timer link is invalid. Create a new countdown.' }, 404);
+    }
+    if (!timingSafeEqual(token, existing.token)) {
+      return jsonResponse(request, env, { ok: false, error: 'This timer is private. Use the exact private URL token.' }, 403);
+    }
+
+    const updated = await countdownStore.setTimerVisibility(id, body.data.isPublic, nowMs);
+    if (!updated) {
+      return jsonResponse(request, env, { ok: false, error: 'Timer update failed.' }, 500);
+    }
+
+    return jsonResponse(request, env, {
+      ok: true,
+      timer: countdownClientTimer(updated, true),
+    });
+  }
+
+  return methodNotAllowed(request, env, ['GET', 'POST', 'PATCH']);
+}
+
 async function handleAuthMe(request, env, store, url, nowSeconds) {
   await store.deleteExpiredSessions(nowSeconds);
 
@@ -3366,8 +3661,10 @@ export function createApiHandler(options = {}) {
         }
 
         const mathsStore = env.MATHS_STORE || (env.DB ? createMathsD1Store(env.DB) : null);
+        const countdownStore = env.COUNTDOWN_STORE || (env.DB ? createCountdownD1Store(env.DB) : null);
 
-        const nowSeconds = Math.floor(now() / 1000);
+        const nowMs = now();
+        const nowSeconds = Math.floor(nowMs / 1000);
 
         if (path === '/api/admin/review') {
           return handleAdminReview(request, env, store, url, nowSeconds);
@@ -3452,6 +3749,10 @@ export function createApiHandler(options = {}) {
 
         if (path === '/api/match') {
           return handleMatch(request, env, store, url, nowSeconds);
+        }
+
+        if (path === '/api/countdown/timer') {
+          return handleCountdownTimer(request, env, countdownStore, url, nowMs);
         }
 
         return notFound(request, env);

@@ -108,6 +108,7 @@ h1 {
 }
 
 input,
+textarea,
 button {
   font: inherit;
   border-radius: 0.55rem;
@@ -118,9 +119,15 @@ button {
 }
 
 input:focus,
+textarea:focus,
 button:focus {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 5.5rem;
 }
 
 button {
@@ -146,6 +153,30 @@ button:hover {
   background: rgba(59, 7, 16, 0.75);
   color: #ffe1e1;
   padding: 0.8rem;
+}
+
+body.countdown-embed {
+  overflow: hidden;
+}
+
+body.countdown-embed h1,
+body.countdown-embed .timer-form,
+body.countdown-embed .share-row,
+body.countdown-embed .audio-row,
+body.countdown-embed .error-message {
+  display: none;
+}
+
+body.countdown-embed .countdown-main {
+  width: 100%;
+  min-height: 100vh;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 1rem;
+}
+
+body.countdown-embed .countdown-clock {
+  font-size: clamp(2.6rem, 9.5vw, 6.8rem);
 }
 
 @media (max-width: 640px) {

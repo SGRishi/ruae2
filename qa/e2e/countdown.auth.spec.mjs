@@ -48,4 +48,28 @@ test.describe('countdown authenticated access', () => {
     await expect(page.getByTestId('countdown-clock')).toBeVisible();
     await expect(page.getByTestId('timer-error')).toBeHidden();
   });
+
+  test('logged-in user can create public URL that works for anonymous viewers', async ({
+    page,
+    context,
+    browser,
+  }) => {
+    await setSessionCookie(context, QA_SESSIONS.approved.token);
+
+    await page.goto('/countdown', { waitUntil: 'domcontentloaded' });
+    const shareUrl = await createTimer(page, { minutes: 14, isPublic: true });
+    expect(shareUrl).not.toContain('?token=');
+
+    const anonContext = await browser.newContext();
+    const anonPage = await anonContext.newPage();
+    await installCountdownTestClock(anonPage);
+    await stubBackgroundImages(anonPage);
+    await anonPage.goto(toPathnameAndSearch(shareUrl), { waitUntil: 'domcontentloaded' });
+
+    await expect(anonPage).not.toHaveURL(/\/login\/\?next=/);
+    await expect(anonPage.getByTestId('countdown-main')).toBeVisible();
+    await expect(anonPage.getByTestId('timer-error')).toBeHidden();
+
+    await anonContext.close();
+  });
 });

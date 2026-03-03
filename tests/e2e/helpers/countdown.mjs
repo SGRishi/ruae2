@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 
 const FIXTURE_1 = new URL('../../fixtures/scenery-1.png', import.meta.url);
 const FIXTURE_2 = new URL('../../fixtures/scenery-2.png', import.meta.url);
+const DEFAULT_TEST_NOW_MS = Date.now() + 60 * 60 * 1000;
 
 let cachedFixtures = null;
 
@@ -14,7 +15,7 @@ async function loadFixtures() {
 
 export async function installCountdownTestClock(page, options = {}) {
   const controls = {
-    nowMs: options.nowMs ?? Date.UTC(2026, 0, 1, 12, 0, 0),
+    nowMs: options.nowMs ?? DEFAULT_TEST_NOW_MS,
     tickIntervalMs: options.tickIntervalMs ?? 80,
     tickStepMs: options.tickStepMs ?? 1_000,
     backgroundIntervalMs: options.backgroundIntervalMs ?? 240,
@@ -23,6 +24,14 @@ export async function installCountdownTestClock(page, options = {}) {
   await page.addInitScript((payload) => {
     globalThis.__COUNTDOWN_TEST__ = payload;
   }, controls);
+}
+
+export async function advanceCountdownTestClock(page, ms) {
+  await page.evaluate((delta) => {
+    const api = globalThis.__COUNTDOWN_TEST_API__;
+    if (!api || typeof api.advance !== 'function') return;
+    api.advance(delta);
+  }, Number(ms) || 0);
 }
 
 export async function stubBackgroundImages(page) {
@@ -56,6 +65,7 @@ export async function createTimer(page, options = {}) {
   const privacyToggle = page.getByTestId('privacy-toggle');
   const submit = page.getByTestId('create-timer-button');
   const shareUrlInput = page.getByTestId('share-url');
+  const previousShareUrl = await shareUrlInput.inputValue();
 
   await durationInput.fill(String(minutes));
 
@@ -67,10 +77,21 @@ export async function createTimer(page, options = {}) {
 
   if (!expectShareUrl) return '';
 
-  await page.waitForFunction((selector) => {
-    const input = globalThis.document.querySelector(selector);
-    return Boolean(input && input.value && /^https?:\/\//i.test(input.value));
-  }, '[data-testid="share-url"]');
+  await page.waitForFunction(
+    ({ selector, previous }) => {
+      const input = globalThis.document.querySelector(selector);
+      if (!input || !input.value || !/^https?:\/\//i.test(input.value)) return false;
+      if (input.value === previous) return false;
+      try {
+        const url = new URL(input.value);
+        const parts = url.pathname.split('/').filter(Boolean);
+        return parts[0] === 'countdown' && parts.length >= 2;
+      } catch {
+        return false;
+      }
+    },
+    { selector: '[data-testid="share-url"]', previous: previousShareUrl }
+  );
   return shareUrlInput.inputValue();
 }
 

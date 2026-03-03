@@ -17,6 +17,14 @@ function parseHms(value) {
   return hours * 3600 + minutes * 60 + seconds;
 }
 
+async function createIsolatedPage(browser, clockOptions = {}) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await installCountdownTestClock(page, clockOptions);
+  await stubBackgroundImages(page);
+  return { context, page };
+}
+
 test.describe('countdown route', () => {
   test.beforeEach(async ({ page }) => {
     await installCountdownTestClock(page);
@@ -105,22 +113,37 @@ test.describe('countdown route', () => {
     expect(totalSeconds).toBeLessThanOrEqual(10 * 60);
   });
 
-  test('6) creating share URL returns unique URLs and each loads', async ({ page }) => {
+  test('6) creating share URL returns unique URLs, and copy-paste view shows same countdown', async ({
+    page,
+    browser,
+  }) => {
     await page.goto('/countdown/', { waitUntil: 'domcontentloaded' });
 
-    const firstUrl = await createTimer(page, { minutes: 12 });
-    const secondUrl = await createTimer(page, { minutes: 13 });
+    const firstUrl = await createTimer(page, { minutes: 12, isPublic: true });
+    const secondUrl = await createTimer(page, { minutes: 13, isPublic: true });
 
     expect(firstUrl).not.toEqual(secondUrl);
     expect(firstUrl).toContain('/countdown/');
     expect(secondUrl).toContain('/countdown/');
 
-    await page.goto(toPathnameAndSearch(firstUrl), { waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('timer-error')).toBeHidden();
-    await expect(page.getByTestId('countdown-clock')).toBeVisible();
+    const ownerSeconds = parseHms((await page.getByTestId('countdown-clock').textContent())?.trim());
+    expect(ownerSeconds).not.toBeNull();
+
+    const viewer = await createIsolatedPage(browser);
+    await viewer.page.goto(toPathnameAndSearch(secondUrl), { waitUntil: 'domcontentloaded' });
+    await expect(viewer.page.getByTestId('timer-error')).toBeHidden();
+    await expect(viewer.page.getByTestId('countdown-clock')).toBeVisible();
+
+    const viewerSeconds = parseHms((await viewer.page.getByTestId('countdown-clock').textContent())?.trim());
+    expect(viewerSeconds).not.toBeNull();
+    expect(Math.abs(ownerSeconds - viewerSeconds)).toBeLessThanOrEqual(2);
+
+    await viewer.page.goto(toPathnameAndSearch(firstUrl), { waitUntil: 'domcontentloaded' });
+    await expect(viewer.page.getByTestId('timer-error')).toBeHidden();
+    await viewer.context.close();
   });
 
-  test('7) private/public behavior and toggle persistence', async ({ page }) => {
+  test('7) private/public behavior and toggle persistence', async ({ page, browser }) => {
     await page.goto('/countdown/', { waitUntil: 'domcontentloaded' });
 
     const privateUrl = await createTimer(page, { minutes: 20, isPublic: false });
@@ -128,27 +151,37 @@ test.describe('countdown route', () => {
 
     const privateWithoutToken = new URL(privateUrl);
     privateWithoutToken.search = '';
-    await page.goto(`${privateWithoutToken.pathname}`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('timer-error')).toContainText(/private/i);
 
-    const privateRobots = await page.locator('meta[name="robots"]').getAttribute('content');
+    const privateViewer = await createIsolatedPage(browser);
+    await privateViewer.page.goto(`${privateWithoutToken.pathname}`, { waitUntil: 'domcontentloaded' });
+    await expect(privateViewer.page.getByTestId('timer-error')).toContainText(/private/i);
+    const privateRobots = await privateViewer.page
+      .locator('meta[name="robots"]')
+      .getAttribute('content');
     expect(privateRobots).toMatch(/noindex/i);
 
-    await page.goto(toPathnameAndSearch(privateUrl), { waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('timer-error')).toBeHidden();
-    await expect(page.getByTestId('privacy-toggle')).not.toBeChecked();
+    await privateViewer.page.goto(toPathnameAndSearch(privateUrl), { waitUntil: 'domcontentloaded' });
+    await expect(privateViewer.page.getByTestId('timer-error')).toBeHidden();
+    await privateViewer.context.close();
 
+    await expect(page.getByTestId('privacy-toggle')).not.toBeChecked();
     await page.getByTestId('privacy-toggle').click();
     await expect(page.getByTestId('privacy-toggle')).toBeChecked();
+    await expect(page.getByTestId('share-url')).not.toHaveValue(/\?token=/);
     const publicUrl = await page.getByTestId('share-url').inputValue();
     expect(publicUrl).not.toContain('?token=');
 
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('privacy-toggle')).toBeChecked();
-    await page.goto(toPathnameAndSearch(publicUrl), { waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('timer-error')).toBeHidden();
-    const publicRobots = await page.locator('meta[name="robots"]').getAttribute('content');
+
+    const publicViewer = await createIsolatedPage(browser);
+    await publicViewer.page.goto(toPathnameAndSearch(publicUrl), { waitUntil: 'domcontentloaded' });
+    await expect(publicViewer.page.getByTestId('timer-error')).toBeHidden();
+    const publicRobots = await publicViewer.page
+      .locator('meta[name="robots"]')
+      .getAttribute('content');
     expect(publicRobots).toMatch(/index/i);
+    await publicViewer.context.close();
   });
 
   test('8) background transitions on schedule', async ({ page }) => {
@@ -237,42 +270,50 @@ test.describe('countdown route', () => {
   });
 
   test('12) invalid and expired URLs show friendly errors without crash', async ({ page }) => {
-    await installCountdownTestClock(page, {
-      tickIntervalMs: 40,
-      tickStepMs: 30_000,
-    });
     await page.goto('/countdown/', { waitUntil: 'domcontentloaded' });
 
-    await createTimer(page, { minutes: 1, isPublic: true });
-    await expect(page.getByTestId('timer-error')).toBeHidden();
+    const serverNow = Date.now();
+    const create = await page.request.post('/api/countdown/timer', {
+      data: {
+        deadlineMs: serverNow + 1_500,
+        isPublic: true,
+      },
+    });
+    expect(create.ok()).toBe(true);
+    const created = await create.json();
+    expect(created?.ok).toBe(true);
+    const timerId = String(created?.timer?.id || '');
+    expect(timerId.length).toBeGreaterThan(0);
+    const validUrl = `/countdown/${encodeURIComponent(timerId)}`;
 
     await page.goto('/countdown/does-not-exist', { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('timer-error')).toContainText(/invalid/i);
 
-    await page.evaluate(() => {
-      const key = 'countdownTimers:v1';
-      const raw = localStorage.getItem(key);
-      const store = raw ? JSON.parse(raw) : {};
-      store.expired_fixture = {
-        id: 'expired_fixture',
-        token: 'tok_fixture',
-        isPublic: true,
-        deadlineMs: 1,
-        createdAtMs: 1,
-      };
-      localStorage.setItem(key, JSON.stringify(store));
-    });
+    await page.goto(validUrl, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('timer-error')).toBeHidden();
 
-    await page.goto('/countdown/expired_fixture', { waitUntil: 'domcontentloaded' });
+    await expect
+      .poll(
+        async () => {
+          const response = await page.request.get(`/api/countdown/timer?id=${encodeURIComponent(timerId)}`);
+          const data = await response.json();
+          return Boolean(data?.expired);
+        },
+        { timeout: 10_000 }
+      )
+      .toBe(true);
+
+    await page.goto(validUrl, { waitUntil: 'domcontentloaded' });
+
     await expect(page.getByTestId('timer-error')).toContainText(/expired/i);
     await expect(page.getByTestId('countdown-main')).toBeVisible();
   });
 
-  test('13) fallback route restore from /countdown/index.html?r=... keeps tokenized timer links working', async ({
+  test('13) fallback route restore from /countdown/index.html?r=... keeps tokenized links working', async ({
     page,
   }) => {
     await page.goto('/countdown/', { waitUntil: 'domcontentloaded' });
-    const shareUrl = await createTimer(page, { minutes: 9, isPublic: true });
+    const shareUrl = await createTimer(page, { minutes: 9, isPublic: false });
     const restoredPath = toPathnameAndSearch(shareUrl);
 
     await page.goto(`/countdown/index.html?r=${encodeURIComponent(restoredPath)}`, {
@@ -282,5 +323,30 @@ test.describe('countdown route', () => {
     await expect(page).toHaveURL(new RegExp(restoredPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     await expect(page.getByTestId('timer-error')).toBeHidden();
     await expect(page.getByTestId('countdown-clock')).toBeVisible();
+  });
+
+  test('14) embed URL renders countdown without editor controls', async ({ page, browser }) => {
+    await page.goto('/countdown/', { waitUntil: 'domcontentloaded' });
+
+    const publicUrl = await createTimer(page, { minutes: 11, isPublic: true });
+    const ownerSeconds = parseHms((await page.getByTestId('countdown-clock').textContent())?.trim());
+    expect(ownerSeconds).not.toBeNull();
+
+    const embedUrl = new URL(publicUrl);
+    embedUrl.searchParams.set('embed', '1');
+
+    const viewer = await createIsolatedPage(browser);
+    await viewer.page.goto(toPathnameAndSearch(embedUrl.toString()), { waitUntil: 'domcontentloaded' });
+
+    await expect(viewer.page.locator('body')).toHaveClass(/countdown-embed/);
+    await expect(viewer.page.getByTestId('countdown-clock')).toBeVisible();
+    await expect(viewer.page.getByTestId('timer-form')).toBeHidden();
+    await expect(viewer.page.getByTestId('share-url')).toBeHidden();
+
+    const viewerSeconds = parseHms((await viewer.page.getByTestId('countdown-clock').textContent())?.trim());
+    expect(viewerSeconds).not.toBeNull();
+    expect(Math.abs(ownerSeconds - viewerSeconds)).toBeLessThanOrEqual(2);
+
+    await viewer.context.close();
   });
 });

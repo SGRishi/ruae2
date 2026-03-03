@@ -56,6 +56,18 @@ CREATE INDEX IF NOT EXISTS idx_login_lockouts_until
 CREATE INDEX IF NOT EXISTS idx_denied_users_denied_at
   ON denied_users (denied_at);
 
+CREATE TABLE IF NOT EXISTS countdown_timers (
+  id TEXT PRIMARY KEY,
+  token TEXT NOT NULL,
+  deadline_ms INTEGER NOT NULL,
+  is_public INTEGER NOT NULL DEFAULT 0,
+  created_at_ms INTEGER NOT NULL,
+  updated_at_ms INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_countdown_timers_deadline
+  ON countdown_timers (deadline_ms);
+
 -- Maths question bank tables.
 
 CREATE TABLE IF NOT EXISTS maths_files (

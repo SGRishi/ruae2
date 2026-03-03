@@ -1,6 +1,6 @@
-const STORAGE_KEY = 'countdownTimers:v1';
 const IMAGE_ROTATION_INTERVAL_MS = 60_000;
 const TICK_INTERVAL_MS = 1_000;
+const OWNER_TOKEN_KEY = 'countdownOwnerTokens:v1';
 const TEST_CONFIG = typeof window !== 'undefined' ? window.__COUNTDOWN_TEST__ || null : null;
 
 const backgroundEl = document.querySelector('[data-testid="background"]');
@@ -12,6 +12,8 @@ const deadlineInputEl = document.querySelector('[data-testid="deadline-input"]')
 const privacyToggleEl = document.querySelector('[data-testid="privacy-toggle"]');
 const shareUrlEl = document.querySelector('[data-testid="share-url"]');
 const copyShareUrlEl = document.querySelector('[data-testid="copy-share-url"]');
+const embedCodeEl = document.querySelector('[data-testid="embed-code"]');
+const copyEmbedCodeEl = document.querySelector('[data-testid="copy-embed-code"]');
 const errorEl = document.querySelector('[data-testid="timer-error"]');
 const audioEl = document.querySelector('[data-testid="audio-player"]');
 const audioPlayEl = document.querySelector('[data-testid="audio-play-button"]');
@@ -25,7 +27,9 @@ const BACKGROUND_IMAGES = [
 ];
 
 let activeTimer = null;
+let ownerToken = '';
 let currentBackgroundIndex = 0;
+let embedMode = false;
 let testNowMs =
   TEST_CONFIG && Number.isFinite(Number(TEST_CONFIG.nowMs)) ? Number(TEST_CONFIG.nowMs) : Date.now();
 
@@ -41,13 +45,22 @@ function maybeRestoreFallbackRoute() {
   window.history.replaceState(null, '', rawRoute);
 }
 
+function isEmbedMode() {
+  return new URL(window.location.href).searchParams.get('embed') === '1';
+}
+
 function getNowMs() {
   return TEST_CONFIG ? testNowMs : Date.now();
 }
 
-function parseTimerStore() {
+function normalizeToken(value) {
+  const token = String(value || '').trim();
+  return /^[A-Za-z0-9_-]{16,200}$/.test(token) ? token : '';
+}
+
+function readOwnerTokenStore() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(OWNER_TOKEN_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === 'object' ? parsed : {};
@@ -56,21 +69,24 @@ function parseTimerStore() {
   }
 }
 
-function writeTimerStore(store) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+function writeOwnerTokenStore(store) {
+  localStorage.setItem(OWNER_TOKEN_KEY, JSON.stringify(store));
 }
 
-function randomId(prefix) {
-  const rand = Math.random().toString(36).slice(2, 11);
-  return `${prefix}_${rand}`;
+function getStoredOwnerToken(timerId) {
+  const id = String(timerId || '').trim();
+  if (!id) return '';
+  const store = readOwnerTokenStore();
+  return normalizeToken(store[id]);
 }
 
-function generateTimerId() {
-  return randomId('tmr');
-}
-
-function generateTimerToken() {
-  return randomId('tok');
+function rememberOwnerToken(timerId, token) {
+  const id = String(timerId || '').trim();
+  const normalizedToken = normalizeToken(token);
+  if (!id || !normalizedToken) return;
+  const store = readOwnerTokenStore();
+  store[id] = normalizedToken;
+  writeOwnerTokenStore(store);
 }
 
 function toDurationString(totalMs) {
@@ -95,8 +111,12 @@ function setError(message) {
 
 function getRouteTimerId() {
   const parts = window.location.pathname.split('/').filter(Boolean);
-  if (!parts.length || parts[0] !== 'countdown') return null;
-  return parts[1] ? decodeURIComponent(parts[1]) : null;
+  if (!parts.length || parts[0] !== 'countdown') return '';
+  return parts[1] ? decodeURIComponent(parts[1]) : '';
+}
+
+function getRouteToken() {
+  return normalizeToken(new URL(window.location.href).searchParams.get('token'));
 }
 
 function setRobots(isPublic) {
@@ -104,16 +124,44 @@ function setRobots(isPublic) {
   robotsMetaEl.setAttribute('content', isPublic ? 'index,follow' : 'noindex,nofollow');
 }
 
-function buildShareUrl(timer) {
+function buildBaseShareUrl(timer) {
   if (!timer) return `${window.location.origin}/countdown/`;
-  const base = `${window.location.origin}/countdown/${encodeURIComponent(timer.id)}`;
-  if (timer.isPublic) return base;
-  return `${base}?token=${encodeURIComponent(timer.token)}`;
+  return `${window.location.origin}/countdown/${encodeURIComponent(timer.id)}`;
+}
+
+function buildShareUrl(timer, token = '') {
+  if (!timer) return buildBaseShareUrl(null);
+  const base = buildBaseShareUrl(timer);
+  if (!timer.isPublic) {
+    const privateToken = normalizeToken(token);
+    if (privateToken) {
+      return `${base}?token=${encodeURIComponent(privateToken)}`;
+    }
+  }
+  return base;
+}
+
+function buildEmbedUrl(timer, token = '') {
+  const url = new URL(buildShareUrl(timer, token));
+  url.searchParams.set('embed', '1');
+  return url.toString();
+}
+
+function buildEmbedCode(timer, token = '') {
+  const src = buildEmbedUrl(timer, token);
+  return `<iframe src="${src}" title="Countdown timer" width="100%" height="240" style="border:0;max-width:720px;overflow:hidden;" loading="lazy" allow="autoplay"></iframe>`;
 }
 
 function updateShareUi(timer) {
-  if (!shareUrlEl) return;
-  shareUrlEl.value = buildShareUrl(timer);
+  const publicShareUrl = buildShareUrl(timer, ownerToken);
+
+  if (shareUrlEl) {
+    shareUrlEl.value = publicShareUrl;
+  }
+
+  if (embedCodeEl) {
+    embedCodeEl.value = buildEmbedCode(timer, ownerToken);
+  }
 }
 
 function updateCountdownText() {
@@ -124,7 +172,7 @@ function updateCountdownText() {
     return;
   }
 
-  const remainingMs = activeTimer.deadlineMs - getNowMs();
+  const remainingMs = Number(activeTimer.deadlineMs) - getNowMs();
   if (remainingMs <= 0) {
     clockEl.textContent = '00:00:00';
     statusEl.textContent = 'Timer complete.';
@@ -132,9 +180,15 @@ function updateCountdownText() {
   }
 
   clockEl.textContent = toDurationString(remainingMs);
-  statusEl.textContent = activeTimer.isPublic
-    ? 'Public timer. Anyone with the link can view it.'
-    : 'Private timer. Exact token URL required.';
+
+  if (activeTimer.isPublic) {
+    statusEl.textContent = ownerToken
+      ? 'Public timer. Anyone with the link can view it.'
+      : 'Public timer. View-only mode.';
+    return;
+  }
+
+  statusEl.textContent = 'Private timer. Exact token URL required.';
 }
 
 function setBackground(index) {
@@ -162,75 +216,149 @@ function parseDeadlineInput(value) {
   return parsed;
 }
 
-function syncPrivacyToggle(isPublic) {
+function syncPrivacyToggle() {
   if (!privacyToggleEl) return;
-  privacyToggleEl.checked = Boolean(isPublic);
+  if (activeTimer) {
+    privacyToggleEl.checked = Boolean(activeTimer.isPublic);
+  }
+  privacyToggleEl.disabled = embedMode || Boolean(activeTimer && !ownerToken);
 }
 
-function saveTimer(timer) {
-  const store = parseTimerStore();
-  store[timer.id] = timer;
-  writeTimerStore(store);
+function buildPageUrl(timer, replaceForEmbed = false) {
+  const url = new URL(buildShareUrl(timer, ownerToken));
+  if (embedMode || replaceForEmbed) {
+    url.searchParams.set('embed', '1');
+  }
+  return `${url.pathname}${url.search}`;
 }
 
-function loadTimer(timerId) {
-  const store = parseTimerStore();
-  return store[timerId] || null;
-}
-
-function activateTimer(timer, replaceHistory = false) {
+function applyTimer(timer, options = {}) {
   activeTimer = timer;
-  syncPrivacyToggle(Boolean(timer?.isPublic));
-  setRobots(Boolean(timer?.isPublic));
-  updateShareUi(timer);
+
+  const tokenCandidate = Object.prototype.hasOwnProperty.call(options, 'token') ? options.token : ownerToken;
+  const normalizedToken = normalizeToken(tokenCandidate);
+  ownerToken = normalizedToken;
+
+  if (activeTimer && ownerToken) {
+    rememberOwnerToken(activeTimer.id, ownerToken);
+  }
+
+  setRobots(Boolean(activeTimer?.isPublic));
+  syncPrivacyToggle();
+  updateShareUi(activeTimer);
   updateCountdownText();
 
-  if (!timer) return;
-  const shareUrl = buildShareUrl(timer);
-  const method = replaceHistory ? 'replaceState' : 'pushState';
-  window.history[method](null, '', shareUrl);
+  if (!activeTimer) return;
+  const method = options.replaceHistory ? 'replaceState' : 'pushState';
+  window.history[method](null, '', buildPageUrl(activeTimer));
 }
 
-function validateRouteAccess(timer) {
-  if (!timer) {
-    setError('That timer link is invalid. Create a new countdown.');
-    activateTimer(null, true);
-    return null;
-  }
-
-  if (timer.deadlineMs <= getNowMs()) {
-    setError('That timer has expired. Create a fresh countdown.');
-    activateTimer(timer, true);
-    return null;
-  }
-
-  if (!timer.isPublic) {
-    const providedToken = String(new URL(window.location.href).searchParams.get('token') || '');
-    if (!providedToken || providedToken !== timer.token) {
-      setError('This timer is private. Use the exact private URL token.');
-      setRobots(false);
-      updateShareUi(timer);
-      return null;
-    }
-  }
-
-  setError('');
-  return timer;
+function resetForNoTimer() {
+  activeTimer = null;
+  ownerToken = '';
+  setRobots(false);
+  syncPrivacyToggle();
+  updateShareUi(null);
+  updateCountdownText();
 }
 
-function initializeFromRoute() {
-  const routeTimerId = getRouteTimerId();
+async function apiRequest(path, options = {}) {
+  const headers = new Headers(options.headers || {});
+  if (options.json !== undefined) {
+    headers.set('Content-Type', 'application/json; charset=utf-8');
+  }
+
+  const response = await fetch(path, {
+    method: options.method || 'GET',
+    headers,
+    body: options.json !== undefined ? JSON.stringify(options.json) : options.body,
+    credentials: 'include',
+  });
+
+  let data = {};
+  try {
+    data = await response.json();
+  } catch {
+    data = {};
+  }
+
+  return { response, data };
+}
+
+function messageFromError(data, fallback) {
+  const message = String(data?.error || '').trim();
+  return message || fallback;
+}
+
+async function initializeFromRoute() {
+  const routeTimerId = String(getRouteTimerId() || '').trim();
   if (!routeTimerId) {
-    setRobots(false);
-    updateShareUi(null);
-    updateCountdownText();
+    resetForNoTimer();
     return;
   }
 
-  const timer = loadTimer(routeTimerId);
-  const accessibleTimer = validateRouteAccess(timer);
-  if (!accessibleTimer) return;
-  activateTimer(accessibleTimer, true);
+  let token = getRouteToken();
+  if (!token) {
+    token = getStoredOwnerToken(routeTimerId);
+  }
+
+  const query = new URLSearchParams({ id: routeTimerId });
+  if (token) query.set('token', token);
+
+  let result;
+  try {
+    result = await apiRequest(`/api/countdown/timer?${query.toString()}`);
+  } catch {
+    setError('Unable to load this timer right now.');
+    resetForNoTimer();
+    return;
+  }
+
+  const { response, data } = result;
+
+  if (!response.ok) {
+    setError(
+      messageFromError(
+        data,
+        response.status === 403
+          ? 'This timer is private. Use the exact private URL token.'
+          : 'That timer link is invalid. Create a new countdown.'
+      )
+    );
+
+    if (response.status === 403) {
+      resetForNoTimer();
+      setRobots(false);
+      if (shareUrlEl) shareUrlEl.value = buildBaseShareUrl({ id: routeTimerId });
+      if (embedCodeEl) embedCodeEl.value = '';
+      return;
+    }
+
+    resetForNoTimer();
+    return;
+  }
+
+  const timer = data?.timer;
+  if (!timer || !timer.id) {
+    setError('That timer link is invalid. Create a new countdown.');
+    resetForNoTimer();
+    return;
+  }
+
+  const canEdit = Boolean(timer.canEdit);
+  const effectiveToken = canEdit ? token : '';
+  if (effectiveToken) rememberOwnerToken(timer.id, effectiveToken);
+
+  applyTimer(timer, {
+    replaceHistory: true,
+    token: effectiveToken,
+  });
+
+  if (Boolean(data?.expired)) {
+    setError('That timer has expired. Create a fresh countdown.');
+  } else {
+    setError('');
+  }
 }
 
 async function copyShareUrl() {
@@ -240,6 +368,16 @@ async function copyShareUrl() {
     statusEl.textContent = 'Share URL copied.';
   } catch {
     statusEl.textContent = 'Copy failed. Select and copy the URL manually.';
+  }
+}
+
+async function copyEmbedCode() {
+  if (!embedCodeEl?.value) return;
+  try {
+    await navigator.clipboard.writeText(embedCodeEl.value);
+    statusEl.textContent = 'Embed code copied.';
+  } catch {
+    statusEl.textContent = 'Copy failed. Select and copy the embed code manually.';
   }
 }
 
@@ -266,7 +404,7 @@ async function toggleAudio() {
   }
 }
 
-function onFormSubmit(event) {
+async function onFormSubmit(event) {
   event.preventDefault();
   setError('');
 
@@ -285,34 +423,76 @@ function onFormSubmit(event) {
     return;
   }
 
-  const timer = {
-    id: generateTimerId(),
-    token: generateTimerToken(),
-    isPublic: Boolean(privacyToggleEl?.checked),
-    deadlineMs,
-    createdAtMs: getNowMs(),
-  };
-  saveTimer(timer);
-  activateTimer(timer, false);
+  let result;
+  try {
+    result = await apiRequest('/api/countdown/timer', {
+      method: 'POST',
+      json: {
+        deadlineMs,
+        isPublic: Boolean(privacyToggleEl?.checked),
+      },
+    });
+  } catch {
+    setError('Unable to create timer right now.');
+    return;
+  }
+
+  const { response, data } = result;
+  if (!response.ok || !data?.timer || !data?.ownerToken) {
+    setError(messageFromError(data, 'Unable to create timer right now.'));
+    return;
+  }
+
+  applyTimer(data.timer, {
+    replaceHistory: false,
+    token: data.ownerToken,
+  });
+  setError('');
 }
 
-function onPrivacyToggle() {
-  if (!activeTimer) return;
-  activeTimer.isPublic = Boolean(privacyToggleEl?.checked);
-  saveTimer(activeTimer);
-  setRobots(activeTimer.isPublic);
-  updateShareUi(activeTimer);
-  setError('');
+async function onPrivacyToggle() {
+  if (!activeTimer || !ownerToken) {
+    syncPrivacyToggle();
+    return;
+  }
 
-  // Keep the currently valid route in the address bar after toggling.
-  window.history.replaceState(null, '', buildShareUrl(activeTimer));
-  updateCountdownText();
+  const nextIsPublic = Boolean(privacyToggleEl?.checked);
+
+  let result;
+  try {
+    result = await apiRequest('/api/countdown/timer', {
+      method: 'PATCH',
+      json: {
+        id: activeTimer.id,
+        token: ownerToken,
+        isPublic: nextIsPublic,
+      },
+    });
+  } catch {
+    syncPrivacyToggle();
+    setError('Unable to update privacy right now.');
+    return;
+  }
+
+  const { response, data } = result;
+  if (!response.ok || !data?.timer) {
+    syncPrivacyToggle();
+    setError(messageFromError(data, 'Unable to update privacy right now.'));
+    return;
+  }
+
+  applyTimer(data.timer, {
+    replaceHistory: true,
+    token: ownerToken,
+  });
+  setError('');
 }
 
 function setupEvents() {
   formEl?.addEventListener('submit', onFormSubmit);
   privacyToggleEl?.addEventListener('change', onPrivacyToggle);
   copyShareUrlEl?.addEventListener('click', copyShareUrl);
+  copyEmbedCodeEl?.addEventListener('click', copyEmbedCode);
   audioPlayEl?.addEventListener('click', toggleAudio);
 }
 
@@ -340,12 +520,36 @@ function setupIntervals() {
   }, imageIntervalMs);
 }
 
+function setupTestApi() {
+  if (!TEST_CONFIG) return;
+  window.__COUNTDOWN_TEST_API__ = {
+    advance(ms) {
+      const delta = Number(ms);
+      if (!Number.isFinite(delta)) return;
+      testNowMs += delta;
+      updateCountdownText();
+    },
+    nowMs() {
+      return testNowMs;
+    },
+  };
+}
+
 function init() {
   maybeRestoreFallbackRoute();
+  embedMode = isEmbedMode();
+  if (embedMode) {
+    document.body.classList.add('countdown-embed');
+  }
+
   setBackground(currentBackgroundIndex);
+  updateShareUi(null);
+  setupTestApi();
   setupEvents();
-  initializeFromRoute();
-  setupIntervals();
+
+  initializeFromRoute().then(() => {
+    setupIntervals();
+  });
 }
 
 init();
