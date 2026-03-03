@@ -36,7 +36,7 @@ test.describe('countdown route', () => {
     await page.goto('/countdown/', { waitUntil: 'domcontentloaded' });
 
     const overlayStyle = await page.getByTestId('overlay').evaluate((node) => {
-      const style = window.getComputedStyle(node);
+      const style = globalThis.getComputedStyle(node);
       return {
         backgroundColor: style.backgroundColor,
         opacity: style.opacity,
@@ -63,7 +63,9 @@ test.describe('countdown route', () => {
     expect(Math.abs(centerX - viewport.width / 2)).toBeLessThan(viewport.width * 0.2);
     expect(Math.abs(centerY - viewport.height / 2)).toBeLessThan(viewport.height * 0.33);
 
-    const fontSize = await clock.evaluate((node) => Number.parseFloat(window.getComputedStyle(node).fontSize));
+    const fontSize = await clock.evaluate((node) =>
+      Number.parseFloat(globalThis.getComputedStyle(node).fontSize)
+    );
     expect(fontSize).toBeGreaterThanOrEqual(48);
   });
 
@@ -154,11 +156,13 @@ test.describe('countdown route', () => {
     await page.goto('/countdown/', { waitUntil: 'domcontentloaded' });
 
     const background = page.getByTestId('background');
-    const initial = await background.evaluate((node) => window.getComputedStyle(node).backgroundImage);
+    const initial = await background.evaluate(
+      (node) => globalThis.getComputedStyle(node).backgroundImage
+    );
 
     await expect
       .poll(
-        () => background.evaluate((node) => window.getComputedStyle(node).backgroundImage),
+        () => background.evaluate((node) => globalThis.getComputedStyle(node).backgroundImage),
         { timeout: 4_000 }
       )
       .not.toEqual(initial);
@@ -170,7 +174,7 @@ test.describe('countdown route', () => {
     await expect(page.locator('h1')).toHaveCount(1);
     const clockColor = await page
       .getByTestId('countdown-clock')
-      .evaluate((node) => window.getComputedStyle(node).color);
+      .evaluate((node) => globalThis.getComputedStyle(node).color);
     expect(clockColor).toBe('rgb(255, 255, 255)');
     await expect(page.getByTestId('overlay')).toBeVisible();
 
@@ -183,7 +187,11 @@ test.describe('countdown route', () => {
       .poll(
         async () => {
           for (let step = 0; step < 4; step += 1) {
-            if (await page.getByTestId('privacy-toggle').evaluate((el) => el === document.activeElement)) {
+            if (
+              await page
+                .getByTestId('privacy-toggle')
+                .evaluate((el) => el === globalThis.document.activeElement)
+            ) {
               return true;
             }
             await page.keyboard.press('Tab');

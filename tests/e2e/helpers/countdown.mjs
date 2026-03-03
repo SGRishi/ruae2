@@ -21,7 +21,7 @@ export async function installCountdownTestClock(page, options = {}) {
   };
 
   await page.addInitScript((payload) => {
-    window.__COUNTDOWN_TEST__ = payload;
+    globalThis.__COUNTDOWN_TEST__ = payload;
   }, controls);
 }
 
@@ -50,11 +50,7 @@ export async function stubBackgroundImages(page) {
 }
 
 export async function createTimer(page, options = {}) {
-  const {
-    minutes = 10,
-    isPublic = false,
-    expectShareUrl = true,
-  } = options;
+  const { minutes = 10, isPublic = false, expectShareUrl = true } = options;
 
   const durationInput = page.getByTestId('duration-minutes');
   const privacyToggle = page.getByTestId('privacy-toggle');
@@ -72,7 +68,7 @@ export async function createTimer(page, options = {}) {
   if (!expectShareUrl) return '';
 
   await page.waitForFunction((selector) => {
-    const input = document.querySelector(selector);
+    const input = globalThis.document.querySelector(selector);
     return Boolean(input && input.value && /^https?:\/\//i.test(input.value));
   }, '[data-testid="share-url"]');
   return shareUrlInput.inputValue();

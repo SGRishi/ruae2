@@ -188,7 +188,7 @@ CI runs these steps on push/PR via `.github/workflows/ci.yml`.
 
 Playwright browser install (one-time on a machine/CI image):
 
-```bash
+````bash
 npx playwright install --with-deps
 
 Countdown E2E notes:
@@ -198,14 +198,15 @@ Countdown E2E notes:
 
 ```bash
 npm run test:e2e -- --grep countdown
-```
+````
 
 - Use an external target URL when needed (for example in CI against a deployed env):
 
 ```bash
 PLAYWRIGHT_BASE_URL=https://rishisubjects.co.uk npm run test:e2e -- --grep countdown
 ```
-```
+
+````
 
 ## Deployment
 
@@ -215,7 +216,7 @@ After deployment, run:
 
 ```bash
 npm run smoke:deploy
-```
+````
 
 GitHub smoke workflow: `.github/workflows/smoke-deploy.yml`.
 
