@@ -104,6 +104,7 @@ Auth identifier:
 
 - `/ruae/`: existing RUAE practice site (unchanged)
 - `/maths/`: SQA Maths Past Paper Question Bank (protected by the same auth + approval rules)
+- `/countdown/`: shareable countdown timer with public/private links
 - `/api/maths/*`: backend API for the Maths question bank (approved users only)
 
 ## Maths Pipeline (Ingest + Segment + Publish)
@@ -189,6 +190,21 @@ Playwright browser install (one-time on a machine/CI image):
 
 ```bash
 npx playwright install --with-deps
+
+Countdown E2E notes:
+
+- Countdown coverage lives in `tests/e2e/countdown.spec.mjs` (loaded by `qa/e2e/countdown.spec.mjs`).
+- Run only countdown tests locally with:
+
+```bash
+npm run test:e2e -- --grep countdown
+```
+
+- Use an external target URL when needed (for example in CI against a deployed env):
+
+```bash
+PLAYWRIGHT_BASE_URL=https://rishisubjects.co.uk npm run test:e2e -- --grep countdown
+```
 ```
 
 ## Deployment

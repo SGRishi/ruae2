@@ -1,5 +1,8 @@
 import { defineConfig } from '@playwright/test';
 
+const baseURL = process.env.PLAYWRIGHT_BASE_URL || process.env.BASE_URL || 'http://127.0.0.1:8789';
+const useExternalBase = Boolean(process.env.PLAYWRIGHT_BASE_URL || process.env.BASE_URL);
+
 export default defineConfig({
   testDir: './qa/e2e',
   timeout: 60_000,
@@ -7,15 +10,18 @@ export default defineConfig({
     timeout: 10_000,
   },
   fullyParallel: false,
-  retries: process.env.CI ? 1 : 0,
+  retries: process.env.CI ? 2 : 0,
   use: {
-    baseURL: 'http://127.0.0.1:8789',
-    trace: 'retain-on-failure',
+    baseURL,
+    trace: 'on-first-retry',
+    video: 'on-first-retry',
   },
-  webServer: {
-    command: 'npm run build && node qa/server.mjs',
-    url: 'http://127.0.0.1:8789/healthz',
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-  },
+  webServer: useExternalBase
+    ? undefined
+    : {
+        command: 'npm run build && node qa/server.mjs',
+        url: 'http://127.0.0.1:8789/healthz',
+        reuseExistingServer: !process.env.CI,
+        timeout: 60_000,
+      },
 });

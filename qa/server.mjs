@@ -146,6 +146,11 @@ async function serveStatic(req, res, pathname) {
     tryFiles.push(path.join(distDir, 'ruae', 'index.html'));
   }
 
+  // Countdown URLs are tokenized (/countdown/:id), so route all nested paths.
+  if (cleanPath === '/countdown' || cleanPath === '/countdown/' || cleanPath.startsWith('/countdown/')) {
+    tryFiles.push(path.join(distDir, 'countdown', 'index.html'));
+  }
+
   for (const filePath of tryFiles) {
     try {
       const data = await readFile(filePath);

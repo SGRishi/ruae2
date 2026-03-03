@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Countdown | Rishi Subjects</title>
+    <meta
+      name="description"
+      content="Create a shareable countdown timer with nature backgrounds, readable dark overlays, and optional relaxing ambience."
+    />
+    <meta name="robots" content="noindex,nofollow" data-testid="robots-meta" />
+    <link rel="stylesheet" href="/countdown/countdown.css" />
+  </head>
+  <body class="countdown-page">
+    <div class="countdown-background" data-testid="background" aria-hidden="true"></div>
+    <div class="countdown-overlay" data-testid="overlay" aria-hidden="true"></div>
+
+    <main class="countdown-main" data-testid="countdown-main">
+      <h1>Countdown Timer</h1>
+
+      <div class="countdown-clock" role="timer" aria-live="polite" data-testid="countdown-clock">00:00:00</div>
+      <p class="countdown-status" data-testid="countdown-status"></p>
+
+      <form class="timer-form" data-testid="timer-form">
+        <label for="durationMinutes">Minutes from now</label>
+        <input
+          id="durationMinutes"
+          name="durationMinutes"
+          data-testid="duration-minutes"
+          type="number"
+          min="1"
+          max="525600"
+          step="1"
+          value="10"
+          required
+        />
+
+        <label for="deadlineInput">or exact deadline</label>
+        <input id="deadlineInput" name="deadlineInput" data-testid="deadline-input" type="datetime-local" />
+
+        <label for="privacyToggle" class="privacy-label">
+          <input id="privacyToggle" name="privacyToggle" data-testid="privacy-toggle" type="checkbox" />
+          Public timer
+        </label>
+
+        <button type="submit" data-testid="create-timer-button">Create share URL</button>
+      </form>
+
+      <div class="share-row">
+        <label for="shareUrl">Share URL</label>
+        <input id="shareUrl" data-testid="share-url" type="text" readonly aria-live="polite" />
+        <button type="button" id="copyShareUrl" data-testid="copy-share-url">Copy</button>
+      </div>
+
+      <div class="audio-row">
+        <audio id="audioPlayer" data-testid="audio-player" preload="none" loop>
+          <source
+            src="https://cdn.pixabay.com/audio/2022/11/22/audio_9f6de55f3f.mp3"
+            type="audio/mpeg"
+          />
+        </audio>
+        <button type="button" id="audioPlayButton" data-testid="audio-play-button" data-state="idle">
+          Play ambience
+        </button>
+        <span id="audioStatus" class="audio-status" aria-live="polite"></span>
+      </div>
+
+      <p class="error-message" data-testid="timer-error" hidden></p>
+    </main>
+
+    <script src="/countdown/countdown.js" type="module"></script>
+  </body>
+</html>

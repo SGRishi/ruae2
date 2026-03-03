@@ -1,0 +1,161 @@
+:root {
+  color-scheme: dark;
+  --bg: #04070f;
+  --surface: rgba(5, 10, 22, 0.66);
+  --text: #ffffff;
+  --muted: #c3d2ee;
+  --accent: #49d2ff;
+  --accent-2: #ffbf4a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body.countdown-page {
+  font-family: 'Space Mono', 'Menlo', 'Consolas', monospace;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.countdown-background,
+.countdown-overlay {
+  position: fixed;
+  inset: 0;
+}
+
+.countdown-background {
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  transition: background-image 900ms ease-in-out, opacity 900ms ease-in-out;
+}
+
+.countdown-overlay {
+  background: rgba(2, 8, 18, 0.62);
+}
+
+.countdown-main {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  width: min(56rem, 100%);
+  margin: 0 auto;
+  padding: clamp(1rem, 3vw, 2rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.75rem, 2.6vw, 1.5rem);
+  text-align: center;
+}
+
+h1 {
+  margin: 0;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  font-size: clamp(1rem, 1.3vw + 0.8rem, 1.5rem);
+  color: var(--muted);
+}
+
+.countdown-clock {
+  width: 100%;
+  font-size: clamp(3.25rem, 10vw + 1rem, 9rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  color: #ffffff;
+  text-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+}
+
+.countdown-status {
+  margin: 0;
+  min-height: 1.6em;
+  color: var(--muted);
+}
+
+.timer-form,
+.share-row,
+.audio-row {
+  width: min(40rem, 100%);
+  background: var(--surface);
+  border: 1px solid rgba(73, 210, 255, 0.28);
+  border-radius: 0.85rem;
+  padding: clamp(0.85rem, 2vw, 1rem);
+  display: grid;
+  gap: 0.6rem;
+  backdrop-filter: blur(2px);
+}
+
+.timer-form label,
+.share-row label {
+  text-align: left;
+  color: #e8f1ff;
+  font-size: 0.88rem;
+  letter-spacing: 0.05em;
+}
+
+.privacy-label {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+input,
+button {
+  font: inherit;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  background: rgba(13, 22, 39, 0.92);
+  padding: 0.62rem 0.8rem;
+}
+
+input:focus,
+button:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button {
+  cursor: pointer;
+  background: linear-gradient(135deg, rgba(73, 210, 255, 0.32), rgba(255, 191, 74, 0.32));
+  font-weight: 700;
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+.audio-status {
+  min-height: 1.25em;
+  color: var(--muted);
+}
+
+.error-message {
+  margin: 0;
+  width: min(40rem, 100%);
+  border: 1px solid rgba(255, 107, 107, 0.5);
+  border-radius: 0.6rem;
+  background: rgba(59, 7, 16, 0.75);
+  color: #ffe1e1;
+  padding: 0.8rem;
+}
+
+@media (max-width: 640px) {
+  .countdown-main {
+    justify-content: flex-start;
+    padding-top: 1.25rem;
+    padding-bottom: 2rem;
+  }
+
+  .countdown-clock {
+    font-size: clamp(2.5rem, 14vw, 4.4rem);
+  }
+}
