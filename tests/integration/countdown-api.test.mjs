@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createApiHandler, createMemoryStore, createMemoryCountdownStore, __test } from '../../worker.js';
+import {
+  createApiHandler,
+  createMemoryStore,
+  createMemoryCountdownStore,
+  __test,
+} from '../../worker.js';
 
 function getSetCookies(response) {
   if (typeof response.headers.getSetCookie === 'function') {
@@ -97,7 +102,11 @@ test('countdown API: public timers are readable without auth and expose start/en
 
   const timerId = created.data.timer.id;
 
-  const publicRead = await apiCall(handler, env, `/api/countdown/timer?id=${encodeURIComponent(timerId)}`);
+  const publicRead = await apiCall(
+    handler,
+    env,
+    `/api/countdown/timer?id=${encodeURIComponent(timerId)}`
+  );
   assert.equal(publicRead.response.status, 200);
   assert.equal(publicRead.data.timer.id, timerId);
   assert.equal(publicRead.data.timer.canEdit, false);

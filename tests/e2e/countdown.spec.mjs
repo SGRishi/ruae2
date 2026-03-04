@@ -44,7 +44,9 @@ test.describe('countdown route', () => {
     await stubBackgroundImages(page);
   });
 
-  test('future datetime updates immediately, labels are above values, and progress is valid', async ({ page }) => {
+  test('future datetime updates immediately, labels are above values, and progress is valid', async ({
+    page,
+  }) => {
     await page.goto('/countdown', { waitUntil: 'domcontentloaded' });
 
     const deadlineValue = await page.evaluate(() => {
@@ -97,7 +99,9 @@ test.describe('countdown route', () => {
     expect(progressInfo.valueNow).toBeLessThanOrEqual(100);
   });
 
-  test('ambient player uses ClassicFM stream and enters play or blocked state', async ({ page }) => {
+  test('ambient player uses ClassicFM stream and enters play or blocked state', async ({
+    page,
+  }) => {
     await page.goto('/countdown', { waitUntil: 'domcontentloaded' });
 
     const streamSrc = await page.getByTestId('audio-element').getAttribute('src');
@@ -125,7 +129,9 @@ test.describe('countdown route', () => {
     await expect(page.getByTestId('bg-image')).toBeVisible();
     await expect(page.getByTestId('overlay')).toBeVisible();
 
-    const firstUrl = await page.getByTestId('bg-image').evaluate((node) => node.dataset.backgroundUrl || '');
+    const firstUrl = await page
+      .getByTestId('bg-image')
+      .evaluate((node) => node.dataset.backgroundUrl || '');
     await forceNextBackground(page);
 
     await expect
@@ -141,7 +147,11 @@ test.describe('countdown route', () => {
 
     await expect(page.getByTestId('make-public-button')).toBeVisible();
 
-    const publicShareUrl = await createTimer(page, { minutes: 12, isPublic: true, returnField: 'public-url' });
+    const publicShareUrl = await createTimer(page, {
+      minutes: 12,
+      isPublic: true,
+      returnField: 'public-url',
+    });
     const embedUrl = await page.getByTestId('embed-url').inputValue();
 
     const viewerA = await createIsolatedPage(browser);
@@ -172,12 +182,16 @@ test.describe('countdown route', () => {
     });
 
     const privateViewer = await createIsolatedPage(browser);
-    await privateViewer.page.goto(toPathnameAndSearch(privateUrl), { waitUntil: 'domcontentloaded' });
+    await privateViewer.page.goto(toPathnameAndSearch(privateUrl), {
+      waitUntil: 'domcontentloaded',
+    });
     await expect(privateViewer.page.getByTestId('password-input')).toBeVisible();
 
     await privateViewer.page.getByTestId('password-input').fill('WrongPassword123');
     await privateViewer.page.getByTestId('password-submit').click();
-    await expect(privateViewer.page.getByTestId('password-message')).toContainText(/access denied|incorrect/i);
+    await expect(privateViewer.page.getByTestId('password-message')).toContainText(
+      /access denied|incorrect/i
+    );
 
     await privateViewer.page.getByTestId('password-input').fill(privatePassword);
     await privateViewer.page.getByTestId('password-submit').click();
