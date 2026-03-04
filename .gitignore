@@ -14,6 +14,7 @@ tmp/
 .env.*
 .venv/
 test-results/
+tools/autofix/*.log
 
 # Python artifacts
 __pycache__/
