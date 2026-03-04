@@ -27,11 +27,14 @@ export async function installCountdownTestClock(page, options = {}) {
 }
 
 export async function advanceCountdownTestClock(page, ms) {
-  await page.evaluate((delta) => {
-    const api = globalThis.__COUNTDOWN_TEST_API__;
-    if (!api || typeof api.advance !== 'function') return;
-    api.advance(delta);
-  }, Number(ms) || 0);
+  await page.evaluate(
+    (delta) => {
+      const api = globalThis.__COUNTDOWN_TEST_API__;
+      if (!api || typeof api.advance !== 'function') return;
+      api.advance(delta);
+    },
+    Number(ms) || 0
+  );
 }
 
 export async function stubBackgroundImages(page) {

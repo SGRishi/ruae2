@@ -59,7 +59,11 @@ test('countdown API: public timers are readable without auth and preserve countd
 
   const timerId = created.data.timer.id;
 
-  const publicRead = await apiCall(handler, env, `/api/countdown/timer?id=${encodeURIComponent(timerId)}`);
+  const publicRead = await apiCall(
+    handler,
+    env,
+    `/api/countdown/timer?id=${encodeURIComponent(timerId)}`
+  );
   assert.equal(publicRead.response.status, 200);
   assert.equal(publicRead.data.ok, true);
   assert.equal(publicRead.data.timer.id, timerId);
@@ -98,9 +102,18 @@ test('countdown API: private timers require exact token and can be toggled publi
   const timerId = created.data.timer.id;
   const ownerToken = created.data.ownerToken;
 
-  const denied = await apiCall(handler, env, `/api/countdown/timer?id=${encodeURIComponent(timerId)}`);
+  const denied = await apiCall(
+    handler,
+    env,
+    `/api/countdown/timer?id=${encodeURIComponent(timerId)}`
+  );
   assert.equal(denied.response.status, 403);
-  assert.equal(String(denied.data.error || '').toLowerCase().includes('private'), true);
+  assert.equal(
+    String(denied.data.error || '')
+      .toLowerCase()
+      .includes('private'),
+    true
+  );
 
   const ownerRead = await apiCall(
     handler,
@@ -121,7 +134,11 @@ test('countdown API: private timers require exact token and can be toggled publi
   assert.equal(toggled.response.status, 200);
   assert.equal(toggled.data.timer.isPublic, true);
 
-  const nowPublic = await apiCall(handler, env, `/api/countdown/timer?id=${encodeURIComponent(timerId)}`);
+  const nowPublic = await apiCall(
+    handler,
+    env,
+    `/api/countdown/timer?id=${encodeURIComponent(timerId)}`
+  );
   assert.equal(nowPublic.response.status, 200);
   assert.equal(nowPublic.data.timer.isPublic, true);
 });
