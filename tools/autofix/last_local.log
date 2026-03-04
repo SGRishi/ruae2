@@ -1,0 +1,15 @@
+[local_test] Starting dev server with: npm run preview
+[local_test] LOCAL_URL=http://127.0.0.1:3000/countdown
+[local_test] BASE_URL=http://127.0.0.1:3000
+[local_test] SMOKE_PATH=/countdown
+
+Running 6 tests using 1 worker
+
+  ✓  1 tests/e2e/countdown.spec.mjs:47:3 › countdown route › future datetime updates immediately, labels are above values, and progress is valid (627ms)
+  ✓  2 tests/e2e/countdown.spec.mjs:100:3 › countdown route › ambient player uses ClassicFM stream and enters play or blocked state (338ms)
+  ✓  3 tests/e2e/countdown.spec.mjs:122:3 › countdown route › background container exists, has overlay, and changes on forced tick (248ms)
+  ✓  4 tests/e2e/countdown.spec.mjs:136:3 › countdown route › public URL, private URL password gate, embed view, and sync across contexts (1.8s)
+  ✓  5 tests/e2e/english-ai.spec.mjs:3:1 › R-AI-01: approved user can check English AI marking without login redirect (348ms)
+  ✓  6 tests/e2e/live-smoke.spec.ts:3:1 › live smoke: countdown page loads in read-only mode (480ms)
+
+  6 passed (4.6s)

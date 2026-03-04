@@ -6,75 +6,139 @@
     <title>Countdown | Rishi Subjects</title>
     <meta
       name="description"
-      content="Create a shareable countdown timer with nature backgrounds, readable dark overlays, and optional relaxing ambience."
+      content="Create polished countdowns with scenery backdrops, progress tracking, and ambient audio."
     />
     <meta name="robots" content="noindex,nofollow" data-testid="robots-meta" />
-    <link rel="stylesheet" href="/countdown/countdown.css?v=20260304d" />
+    <link rel="stylesheet" href="/countdown/countdown.css?v=20260304e" />
   </head>
   <body class="countdown-page">
-    <div class="countdown-background" data-testid="background" aria-hidden="true"></div>
+    <div class="countdown-background" data-testid="bg-image" aria-hidden="true"></div>
     <div class="countdown-overlay" data-testid="overlay" aria-hidden="true"></div>
 
     <main class="countdown-main" data-testid="countdown-main">
-      <h1>Countdown Timer</h1>
+      <section class="countdown-shell">
+        <h1>Countdown</h1>
+        <p class="countdown-status" data-testid="countdown-status">Set a future time to begin.</p>
 
-      <div class="countdown-clock" role="timer" aria-live="polite" data-testid="countdown-clock">00:00:00</div>
-      <p class="countdown-status" data-testid="countdown-status"></p>
+        <section class="countdown-display" data-testid="countdown-display" role="timer" aria-live="polite">
+          <article class="countdown-unit">
+            <span class="unit-label" data-testid="label-days">Days</span>
+            <span class="unit-value" data-testid="countdown-days">00</span>
+          </article>
+          <article class="countdown-unit">
+            <span class="unit-label" data-testid="label-hours">Hours</span>
+            <span class="unit-value" data-testid="countdown-hours">00</span>
+          </article>
+          <article class="countdown-unit">
+            <span class="unit-label" data-testid="label-minutes">Minutes</span>
+            <span class="unit-value" data-testid="countdown-minutes">00</span>
+          </article>
+          <article class="countdown-unit">
+            <span class="unit-label" data-testid="label-seconds">Seconds</span>
+            <span class="unit-value" data-testid="countdown-seconds">00</span>
+          </article>
+        </section>
 
-      <form class="timer-form" data-testid="timer-form">
-        <label for="durationMinutes">Minutes from now</label>
-        <input
-          id="durationMinutes"
-          name="durationMinutes"
-          data-testid="duration-minutes"
-          type="number"
-          min="1"
-          max="525600"
-          step="1"
-          value="10"
-          required
-        />
+        <section class="progress-wrap" aria-label="Countdown progress">
+          <div class="progress-head">
+            <span>Time left</span>
+            <span data-testid="progress-percent">100%</span>
+          </div>
+          <div class="progress-track">
+            <div
+              class="progress-fill"
+              data-testid="progress-bar"
+              role="progressbar"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="100"
+            ></div>
+          </div>
+        </section>
 
-        <label for="deadlineInput">or exact deadline</label>
-        <input id="deadlineInput" name="deadlineInput" data-testid="deadline-input" type="datetime-local" />
-
-        <label for="privacyToggle" class="privacy-label">
-          <input id="privacyToggle" name="privacyToggle" data-testid="privacy-toggle" type="checkbox" />
-          Public timer
-        </label>
-
-        <button type="submit" data-testid="create-timer-button">Create share URL</button>
-      </form>
-
-      <div class="share-row">
-        <label for="shareUrl">Share URL</label>
-        <input id="shareUrl" data-testid="share-url" type="text" readonly aria-live="polite" />
-        <button type="button" id="copyShareUrl" data-testid="copy-share-url">Copy</button>
-      </div>
-
-      <div class="share-row">
-        <label for="embedCode">Embed code</label>
-        <textarea id="embedCode" data-testid="embed-code" rows="3" readonly></textarea>
-        <button type="button" id="copyEmbedCode" data-testid="copy-embed-code">Copy embed code</button>
-      </div>
-
-      <div class="audio-row">
-        <audio id="audioPlayer" data-testid="audio-player" preload="none" loop>
-          <source
-            src="https://cdn.pixabay.com/audio/2022/11/22/audio_9f6de55f3f.mp3"
-            type="audio/mpeg"
+        <form class="timer-form" data-testid="timer-form" autocomplete="off">
+          <label for="durationMinutes">Minutes from now</label>
+          <input
+            id="durationMinutes"
+            name="durationMinutes"
+            data-testid="duration-minutes"
+            type="number"
+            min="1"
+            max="525600"
+            step="1"
+            value="10"
           />
-        </audio>
-        <button type="button" id="audioPlayButton" data-testid="audio-play-button" data-state="idle">
-          Play ambience
-        </button>
-        <span id="audioStatus" class="audio-status" aria-live="polite"></span>
-      </div>
 
-      <p class="error-message" data-testid="timer-error" hidden></p>
+          <label for="deadlineInput">Target date and time</label>
+          <input id="deadlineInput" name="deadlineInput" data-testid="deadline-input" type="datetime-local" />
+
+          <label for="visibilityToggle" class="inline-control">
+            <input id="visibilityToggle" name="visibilityToggle" data-testid="visibility-toggle" type="checkbox" checked />
+            Create as public countdown
+          </label>
+
+          <label for="setupPassword">Private password (required for private countdowns)</label>
+          <input
+            id="setupPassword"
+            name="setupPassword"
+            data-testid="setup-password-input"
+            type="password"
+            minlength="12"
+            autocomplete="new-password"
+            placeholder="Minimum 12 chars with upper/lowercase + number"
+          />
+
+          <button type="submit" data-testid="create-button">Create countdown</button>
+        </form>
+
+        <section class="share-grid">
+          <label for="publicUrl">Public URL</label>
+          <input id="publicUrl" data-testid="public-url" type="text" readonly />
+
+          <label for="privateUrl">Private URL</label>
+          <input id="privateUrl" data-testid="private-url" type="text" readonly />
+
+          <label for="embedUrl">Embed URL</label>
+          <input id="embedUrl" data-testid="embed-url" type="text" readonly />
+        </section>
+
+        <div class="actions-row">
+          <button type="button" data-testid="make-public-button" disabled>Make public</button>
+        </div>
+
+        <section class="password-gate" data-testid="password-gate" hidden>
+          <h2>Private countdown</h2>
+          <p>Enter the password to view this timer.</p>
+          <input
+            data-testid="password-input"
+            id="passwordInput"
+            type="password"
+            autocomplete="current-password"
+            placeholder="Enter countdown password"
+          />
+          <button type="button" data-testid="password-submit">Unlock</button>
+          <p class="password-message" data-testid="password-message" aria-live="polite"></p>
+        </section>
+
+        <section class="audio-row">
+          <audio id="ambientAudio" data-testid="audio-element" preload="none" src="https://ice-the.musicradio.com/ClassicFMMP3"></audio>
+          <div class="audio-buttons">
+            <button type="button" data-testid="music-play">Play ambient</button>
+            <button type="button" data-testid="music-pause">Pause ambient</button>
+          </div>
+          <p class="audio-status" data-testid="audio-status" aria-live="polite">Ambient paused.</p>
+        </section>
+
+        <p class="error-message" data-testid="timer-error" hidden></p>
+
+        <p class="credits">
+          Photos via
+          <a href="https://unsplash.com/license" target="_blank" rel="noreferrer noopener">Unsplash</a>
+        </p>
+      </section>
     </main>
 
     <script src="/runtime-config.js?v=20260214"></script>
-    <script src="/countdown/countdown.js?v=20260304d" type="module"></script>
+    <script src="/countdown/countdown.js?v=20260304e" type="module"></script>
   </body>
 </html>

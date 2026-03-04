@@ -37,6 +37,14 @@ export async function advanceCountdownTestClock(page, ms) {
   );
 }
 
+export async function forceNextBackground(page) {
+  await page.evaluate(() => {
+    const api = globalThis.__COUNTDOWN_TEST_API__;
+    if (!api || typeof api.nextBackground !== 'function') return;
+    api.nextBackground();
+  });
+}
+
 export async function stubBackgroundImages(page) {
   const [first, second] = await loadFixtures();
   let calls = 0;
@@ -62,23 +70,34 @@ export async function stubBackgroundImages(page) {
 }
 
 export async function createTimer(page, options = {}) {
-  const { minutes = 10, isPublic = false, expectShareUrl = true } = options;
+  const {
+    minutes = 10,
+    isPublic = false,
+    password = 'StrongPassword123',
+    expectUrl = true,
+    returnField = isPublic ? 'public-url' : 'private-url',
+  } = options;
 
   const durationInput = page.getByTestId('duration-minutes');
-  const privacyToggle = page.getByTestId('privacy-toggle');
-  const submit = page.getByTestId('create-timer-button');
-  const shareUrlInput = page.getByTestId('share-url');
-  const previousShareUrl = await shareUrlInput.inputValue();
+  const visibilityToggle = page.getByTestId('visibility-toggle');
+  const setupPassword = page.getByTestId('setup-password-input');
+  const submit = page.getByTestId('create-button');
+  const targetInput = page.getByTestId(returnField);
+  const previousValue = await targetInput.inputValue();
 
   await durationInput.fill(String(minutes));
 
-  if (isPublic !== (await privacyToggle.isChecked())) {
-    await privacyToggle.click();
+  if (isPublic !== (await visibilityToggle.isChecked())) {
+    await visibilityToggle.click();
+  }
+
+  if (!isPublic) {
+    await setupPassword.fill(password);
   }
 
   await submit.click();
 
-  if (!expectShareUrl) return '';
+  if (!expectUrl) return '';
 
   await page.waitForFunction(
     ({ selector, previous }) => {
@@ -93,9 +112,10 @@ export async function createTimer(page, options = {}) {
         return false;
       }
     },
-    { selector: '[data-testid="share-url"]', previous: previousShareUrl }
+    { selector: `[data-testid="${returnField}"]`, previous: previousValue }
   );
-  return shareUrlInput.inputValue();
+
+  return targetInput.inputValue();
 }
 
 export function toPathnameAndSearch(urlValue) {

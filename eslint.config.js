@@ -25,7 +25,7 @@ export default [
     },
   },
   {
-    files: ['playwright.config.mjs'],
+    files: ['playwright.config.ts'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

@@ -3,9 +3,11 @@ import papersData from './public/data/papers.json' with { type: 'json' };
 const encoder = new TextEncoder();
 const SESSION_COOKIE_NAME = 'ruae_session';
 const CSRF_COOKIE_NAME = 'ruae_csrf';
+const COUNTDOWN_ACCESS_COOKIE_PREFIX = 'ruae_countdown_access_';
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 const CSRF_MAX_AGE_SECONDS = 60 * 60 * 12;
+const COUNTDOWN_ACCESS_MAX_AGE_SECONDS = 60 * 60 * 24;
 const PASSWORD_MIN_LENGTH = 12;
 const PBKDF2_ITERATIONS = 100_000;
 const PBKDF2_HASH = 'SHA-256';
@@ -178,6 +180,42 @@ function buildCsrfCookie(token, url, env) {
   });
 }
 
+function countdownAccessCookieName(timerId) {
+  const normalizedId = normalizeCountdownId(timerId);
+  if (!normalizedId) return '';
+  return `${COUNTDOWN_ACCESS_COOKIE_PREFIX}${normalizedId}`;
+}
+
+function buildCountdownAccessCookie(timerId, token, url, env) {
+  const cookieName = countdownAccessCookieName(timerId);
+  if (!cookieName) return '';
+
+  return serializeCookie(cookieName, token, {
+    path: '/',
+    domain: cookieDomainForUrl(url, env),
+    sameSite: 'Lax',
+    secure: secureCookieForUrl(url, env),
+    httpOnly: true,
+    maxAge: COUNTDOWN_ACCESS_MAX_AGE_SECONDS,
+    priority: 'High',
+  });
+}
+
+function clearCountdownAccessCookie(timerId, url, env) {
+  const cookieName = countdownAccessCookieName(timerId);
+  if (!cookieName) return '';
+
+  return serializeCookie(cookieName, '', {
+    path: '/',
+    domain: cookieDomainForUrl(url, env),
+    sameSite: 'Lax',
+    secure: secureCookieForUrl(url, env),
+    httpOnly: true,
+    maxAge: 0,
+    priority: 'High',
+  });
+}
+
 function appendSetCookies(headers, cookies = []) {
   for (const cookie of cookies) {
     headers.append('Set-Cookie', cookie);
@@ -267,7 +305,7 @@ function addCorsHeaders(request, env, headers) {
   if (!corsOrigin) return;
   headers.set('Access-Control-Allow-Origin', corsOrigin);
   headers.set('Access-Control-Allow-Credentials', 'true');
-  headers.set('Access-Control-Allow-Methods', 'GET,HEAD,POST,OPTIONS');
+  headers.set('Access-Control-Allow-Methods', 'GET,HEAD,POST,PATCH,OPTIONS');
   headers.set(
     'Access-Control-Allow-Headers',
     'Content-Type, Range, If-Modified-Since, If-None-Match, If-Range, X-CSRF-Token, X-Admin-Token, X-Admin-Key'
@@ -362,6 +400,44 @@ function isValidTokenShape(value) {
 async function hashSessionToken(token, sessionSecret) {
   const digest = await crypto.subtle.digest('SHA-256', encoder.encode(`${sessionSecret}\u0000${token}`));
   return bytesToBase64Url(new Uint8Array(digest));
+}
+
+async function signCountdownAccess(timerId, expiresAtSeconds, sessionSecret) {
+  const id = normalizeCountdownId(timerId);
+  const expires = Number.parseInt(String(expiresAtSeconds), 10);
+  const secret = String(sessionSecret || '').trim();
+  if (!id || !Number.isFinite(expires) || expires <= 0 || !secret) return '';
+  return hashSessionToken(`${id}.${expires}`, secret);
+}
+
+async function createCountdownAccessValue(timerId, expiresAtSeconds, sessionSecret) {
+  const signature = await signCountdownAccess(timerId, expiresAtSeconds, sessionSecret);
+  if (!signature) return '';
+  return `${Math.floor(expiresAtSeconds)}.${signature}`;
+}
+
+async function hasCountdownCookieAccess(request, env, timerId, nowSeconds) {
+  const cookieName = countdownAccessCookieName(timerId);
+  if (!cookieName) return false;
+
+  const sessionSecret = String(env.SESSION_SECRET || '').trim();
+  if (!sessionSecret) return false;
+
+  const cookies = parseCookies(request.headers.get('Cookie'));
+  const rawValue = String(cookies[cookieName] || '').trim();
+  if (!rawValue) return false;
+
+  const parts = rawValue.split('.');
+  if (parts.length !== 2) return false;
+
+  const expiresAtSeconds = Number.parseInt(parts[0], 10);
+  const providedSignature = String(parts[1] || '').trim();
+
+  if (!Number.isFinite(expiresAtSeconds) || expiresAtSeconds <= Number(nowSeconds || 0)) return false;
+  if (!isValidTokenShape(providedSignature)) return false;
+
+  const expectedSignature = await signCountdownAccess(timerId, expiresAtSeconds, sessionSecret);
+  return timingSafeEqual(providedSignature, expectedSignature);
 }
 
 async function pbkdf2Hash(password, saltB64Url, pepper = '') {
@@ -1071,6 +1147,12 @@ function normalizeCountdownDeadlineMs(value) {
   return Math.floor(deadlineMs);
 }
 
+function normalizeCountdownStartAtMs(value) {
+  const startAtMs = Number(value);
+  if (!Number.isFinite(startAtMs)) return null;
+  return Math.floor(startAtMs);
+}
+
 function normalizeCountdownDurationMinutes(value) {
   const minutes = Number.parseInt(String(value || ''), 10);
   if (!Number.isFinite(minutes)) return null;
@@ -1080,12 +1162,21 @@ function normalizeCountdownDurationMinutes(value) {
 
 function countdownRowToTimer(row) {
   if (!row) return null;
+
+  const createdAtMs = Number(row.created_at_ms);
+  const startAtMs = normalizeCountdownStartAtMs(row.start_at_ms ?? row.created_at_ms);
+  const deadlineMs = Number(row.deadline_ms);
+
   return {
     id: normalizeCountdownId(row.id),
     token: normalizeCountdownToken(row.token),
-    deadlineMs: Number(row.deadline_ms),
+    startAtMs: Number.isFinite(startAtMs) ? startAtMs : createdAtMs,
+    endAtMs: deadlineMs,
+    deadlineMs,
     isPublic: Boolean(Number(row.is_public)),
-    createdAtMs: Number(row.created_at_ms),
+    passSalt: typeof row.pass_salt === 'string' ? row.pass_salt : '',
+    passHash: typeof row.pass_hash === 'string' ? row.pass_hash : '',
+    createdAtMs,
     updatedAtMs: Number(row.updated_at_ms),
   };
 }
@@ -1103,6 +1194,18 @@ function createCountdownD1Store(db) {
     throw new Error('DB binding is missing or invalid.');
   }
 
+  async function tryMigration(sql) {
+    try {
+      await db.prepare(sql).run();
+    } catch (error) {
+      const message = String(error?.message || '').toLowerCase();
+      if (message.includes('duplicate column name') || message.includes('already exists')) {
+        return;
+      }
+      throw error;
+    }
+  }
+
   let readyPromise = null;
   async function ensureReady() {
     if (!readyPromise) {
@@ -1111,8 +1214,11 @@ function createCountdownD1Store(db) {
           `CREATE TABLE IF NOT EXISTS countdown_timers (
             id TEXT PRIMARY KEY,
             token TEXT NOT NULL,
+            start_at_ms INTEGER,
             deadline_ms INTEGER NOT NULL,
             is_public INTEGER NOT NULL DEFAULT 0,
+            pass_salt TEXT,
+            pass_hash TEXT,
             created_at_ms INTEGER NOT NULL,
             updated_at_ms INTEGER NOT NULL
           )`
@@ -1121,6 +1227,9 @@ function createCountdownD1Store(db) {
           `CREATE INDEX IF NOT EXISTS idx_countdown_timers_deadline
            ON countdown_timers (deadline_ms)`
         ).run();
+        await tryMigration('ALTER TABLE countdown_timers ADD COLUMN start_at_ms INTEGER');
+        await tryMigration('ALTER TABLE countdown_timers ADD COLUMN pass_salt TEXT');
+        await tryMigration('ALTER TABLE countdown_timers ADD COLUMN pass_hash TEXT');
       })();
     }
     await readyPromise;
@@ -1131,20 +1240,53 @@ function createCountdownD1Store(db) {
       await ensureReady();
       const id = normalizeCountdownId(record?.id);
       const token = normalizeCountdownToken(record?.token);
+      const startAtMs = normalizeCountdownStartAtMs(record?.startAtMs ?? record?.createdAtMs);
       const deadlineMs = normalizeCountdownDeadlineMs(record?.deadlineMs);
       const isPublic = Boolean(record?.isPublic);
+      const passSalt = String(record?.passSalt || '').trim();
+      const passHash = String(record?.passHash || '').trim();
       const createdAtMs = Number(record?.createdAtMs);
       const updatedAtMs = Number(record?.updatedAtMs);
 
-      if (!id || !token || !Number.isFinite(deadlineMs) || !Number.isFinite(createdAtMs) || !Number.isFinite(updatedAtMs)) {
+      if (
+        !id
+        || !token
+        || !Number.isFinite(startAtMs)
+        || !Number.isFinite(deadlineMs)
+        || !Number.isFinite(createdAtMs)
+        || !Number.isFinite(updatedAtMs)
+      ) {
         throw new Error('Invalid countdown timer payload.');
+      }
+      if (!isPublic && (!isValidTokenShape(passSalt) || !isValidTokenShape(passHash))) {
+        throw new Error('Private countdowns require a valid password hash.');
       }
 
       await db.prepare(
-        `INSERT INTO countdown_timers (id, token, deadline_ms, is_public, created_at_ms, updated_at_ms)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
+        `INSERT INTO countdown_timers (
+           id,
+           token,
+           start_at_ms,
+           deadline_ms,
+           is_public,
+           pass_salt,
+           pass_hash,
+           created_at_ms,
+           updated_at_ms
+         )
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`
       )
-        .bind(id, token, deadlineMs, isPublic ? 1 : 0, createdAtMs, updatedAtMs)
+        .bind(
+          id,
+          token,
+          startAtMs,
+          deadlineMs,
+          isPublic ? 1 : 0,
+          isPublic ? null : passSalt,
+          isPublic ? null : passHash,
+          createdAtMs,
+          updatedAtMs
+        )
         .run();
 
       return this.getTimerById(id);
@@ -1155,7 +1297,7 @@ function createCountdownD1Store(db) {
       const id = normalizeCountdownId(timerId);
       if (!id) return null;
       const row = await db.prepare(
-        `SELECT id, token, deadline_ms, is_public, created_at_ms, updated_at_ms
+        `SELECT id, token, start_at_ms, deadline_ms, is_public, pass_salt, pass_hash, created_at_ms, updated_at_ms
          FROM countdown_timers
          WHERE id = ?1
          LIMIT 1`
@@ -1165,17 +1307,42 @@ function createCountdownD1Store(db) {
       return countdownRowToTimer(row);
     },
 
-    async setTimerVisibility(timerId, isPublic, updatedAtMs) {
+    async setTimerVisibility(timerId, isPublic, updatedAtMs, options = {}) {
       await ensureReady();
       const id = normalizeCountdownId(timerId);
       if (!id) return null;
+      const existing = await this.getTimerById(id);
+      if (!existing) return null;
+
+      const nextIsPublic = Boolean(isPublic);
+      const requestedSalt =
+        Object.prototype.hasOwnProperty.call(options, 'passSalt')
+          ? String(options.passSalt || '').trim()
+          : String(existing.passSalt || '');
+      const requestedHash =
+        Object.prototype.hasOwnProperty.call(options, 'passHash')
+          ? String(options.passHash || '').trim()
+          : String(existing.passHash || '');
+
+      if (!nextIsPublic && (!isValidTokenShape(requestedSalt) || !isValidTokenShape(requestedHash))) {
+        throw new Error('Private countdowns require a valid password hash.');
+      }
+
       await db.prepare(
         `UPDATE countdown_timers
          SET is_public = ?1,
-             updated_at_ms = ?2
-         WHERE id = ?3`
+             pass_salt = ?2,
+             pass_hash = ?3,
+             updated_at_ms = ?4
+         WHERE id = ?5`
       )
-        .bind(isPublic ? 1 : 0, Number(updatedAtMs), id)
+        .bind(
+          nextIsPublic ? 1 : 0,
+          nextIsPublic ? null : requestedSalt,
+          nextIsPublic ? null : requestedHash,
+          Number(updatedAtMs),
+          id
+        )
         .run();
       return this.getTimerById(id);
     },
@@ -1190,16 +1357,36 @@ export function createMemoryCountdownStore(seed = {}) {
     const id = normalizeCountdownId(item?.id);
     const token = normalizeCountdownToken(item?.token);
     const deadlineMs = normalizeCountdownDeadlineMs(item?.deadlineMs);
+    const startAtMs = normalizeCountdownStartAtMs(item?.startAtMs ?? item?.createdAtMs);
     const createdAtMs = Number(item?.createdAtMs);
     const updatedAtMs = Number(item?.updatedAtMs ?? item?.createdAtMs);
-    if (!id || !token || !Number.isFinite(deadlineMs) || !Number.isFinite(createdAtMs) || !Number.isFinite(updatedAtMs)) {
+    const passSalt = String(item?.passSalt || '').trim();
+    const passHash = String(item?.passHash || '').trim();
+    const isPublic = Boolean(item?.isPublic);
+
+    if (
+      !id
+      || !token
+      || !Number.isFinite(startAtMs)
+      || !Number.isFinite(deadlineMs)
+      || !Number.isFinite(createdAtMs)
+      || !Number.isFinite(updatedAtMs)
+    ) {
       continue;
     }
+    if (!isPublic && (!isValidTokenShape(passSalt) || !isValidTokenShape(passHash))) {
+      continue;
+    }
+
     timers.set(id, {
       id,
       token,
+      startAtMs,
+      endAtMs: deadlineMs,
       deadlineMs,
-      isPublic: Boolean(item?.isPublic),
+      isPublic,
+      passSalt: isPublic ? '' : passSalt,
+      passHash: isPublic ? '' : passHash,
       createdAtMs,
       updatedAtMs,
     });
@@ -1209,17 +1396,36 @@ export function createMemoryCountdownStore(seed = {}) {
     async createTimer(record) {
       const id = normalizeCountdownId(record?.id);
       const token = normalizeCountdownToken(record?.token);
+      const startAtMs = normalizeCountdownStartAtMs(record?.startAtMs ?? record?.createdAtMs);
       const deadlineMs = normalizeCountdownDeadlineMs(record?.deadlineMs);
+      const isPublic = Boolean(record?.isPublic);
+      const passSalt = String(record?.passSalt || '').trim();
+      const passHash = String(record?.passHash || '').trim();
       const createdAtMs = Number(record?.createdAtMs);
       const updatedAtMs = Number(record?.updatedAtMs);
-      if (!id || !token || !Number.isFinite(deadlineMs) || !Number.isFinite(createdAtMs) || !Number.isFinite(updatedAtMs)) {
+      if (
+        !id
+        || !token
+        || !Number.isFinite(startAtMs)
+        || !Number.isFinite(deadlineMs)
+        || !Number.isFinite(createdAtMs)
+        || !Number.isFinite(updatedAtMs)
+      ) {
         throw new Error('Invalid countdown timer payload.');
       }
+      if (!isPublic && (!isValidTokenShape(passSalt) || !isValidTokenShape(passHash))) {
+        throw new Error('Invalid countdown timer payload.');
+      }
+
       const timer = {
         id,
         token,
+        startAtMs,
+        endAtMs: deadlineMs,
         deadlineMs,
-        isPublic: Boolean(record?.isPublic),
+        isPublic,
+        passSalt: isPublic ? '' : passSalt,
+        passHash: isPublic ? '' : passHash,
         createdAtMs,
         updatedAtMs,
       };
@@ -1234,14 +1440,31 @@ export function createMemoryCountdownStore(seed = {}) {
       return timer ? { ...timer } : null;
     },
 
-    async setTimerVisibility(timerId, isPublic, updatedAtMs) {
+    async setTimerVisibility(timerId, isPublic, updatedAtMs, options = {}) {
       const id = normalizeCountdownId(timerId);
       if (!id) return null;
       const existing = timers.get(id);
       if (!existing) return null;
+
+      const nextIsPublic = Boolean(isPublic);
+      const passSalt =
+        Object.prototype.hasOwnProperty.call(options, 'passSalt')
+          ? String(options.passSalt || '').trim()
+          : String(existing.passSalt || '').trim();
+      const passHash =
+        Object.prototype.hasOwnProperty.call(options, 'passHash')
+          ? String(options.passHash || '').trim()
+          : String(existing.passHash || '').trim();
+
+      if (!nextIsPublic && (!isValidTokenShape(passSalt) || !isValidTokenShape(passHash))) {
+        throw new Error('Private countdowns require a valid password hash.');
+      }
+
       const next = {
         ...existing,
-        isPublic: Boolean(isPublic),
+        isPublic: nextIsPublic,
+        passSalt: nextIsPublic ? '' : passSalt,
+        passHash: nextIsPublic ? '' : passHash,
         updatedAtMs: Number(updatedAtMs),
       };
       timers.set(id, next);
@@ -2435,9 +2658,13 @@ function toPublicUser(user) {
 
 function countdownClientTimer(timer, canEdit = false) {
   if (!timer) return null;
+  const startAtMs = Number(timer.startAtMs ?? timer.createdAtMs);
+  const endAtMs = Number(timer.endAtMs ?? timer.deadlineMs);
   return {
     id: timer.id,
-    deadlineMs: Number(timer.deadlineMs),
+    startAtMs,
+    endAtMs,
+    deadlineMs: endAtMs,
     isPublic: Boolean(timer.isPublic),
     createdAtMs: Number(timer.createdAtMs),
     updatedAtMs: Number(timer.updatedAtMs),
@@ -2445,7 +2672,12 @@ function countdownClientTimer(timer, canEdit = false) {
   };
 }
 
-async function handleCountdownTimer(request, env, countdownStore, url, nowMs) {
+function countdownHasStoredPassword(timer) {
+  if (!timer) return false;
+  return isValidTokenShape(timer.passSalt) && isValidTokenShape(timer.passHash);
+}
+
+async function handleCountdownTimer(request, env, countdownStore, url, nowMs, nowSeconds) {
   if (!countdownStore) {
     return jsonResponse(request, env, { ok: false, error: 'Countdown storage is not configured.' }, 503);
   }
@@ -2463,16 +2695,39 @@ async function handleCountdownTimer(request, env, countdownStore, url, nowMs) {
 
     const providedToken = normalizeCountdownToken(url.searchParams.get('token'));
     const hasValidToken = Boolean(providedToken) && timingSafeEqual(providedToken, timer.token);
+    const hasPasswordRecord = countdownHasStoredPassword(timer);
+    const hasCookieAccess = hasPasswordRecord
+      ? await hasCountdownCookieAccess(request, env, timer.id, nowSeconds)
+      : false;
 
-    if (!timer.isPublic && !hasValidToken) {
-      return jsonResponse(request, env, { ok: false, error: 'This timer is private. Use the exact private URL token.' }, 403);
+    if (!timer.isPublic && !hasValidToken && !hasCookieAccess) {
+      if (hasPasswordRecord) {
+        return jsonResponse(
+          request,
+          env,
+          {
+            ok: false,
+            requiresPassword: true,
+            error: 'This countdown is private. Enter the password to continue.',
+          },
+          403
+        );
+      }
+
+      return jsonResponse(
+        request,
+        env,
+        { ok: false, error: 'This timer is private. Use the exact private URL token.' },
+        403
+      );
     }
 
+    const canEdit = hasValidToken;
     return jsonResponse(request, env, {
       ok: true,
       serverNowMs: nowMs,
-      timer: countdownClientTimer(timer, hasValidToken),
-      expired: Number(timer.deadlineMs) <= Number(nowMs),
+      timer: countdownClientTimer(timer, canEdit),
+      expired: Number(timer.endAtMs ?? timer.deadlineMs) <= Number(nowMs),
     });
   }
 
@@ -2496,11 +2751,34 @@ async function handleCountdownTimer(request, env, countdownStore, url, nowMs) {
       return jsonResponse(request, env, { ok: false, error: 'Deadline is too far in the future.' }, 400);
     }
 
+    const isPublic = Boolean(body.data.isPublic);
+    const privatePassword = String(body.data.password || '').trim();
+    let passwordRecord = null;
+
+    if (!isPublic) {
+      if (!isStrongPassword(privatePassword)) {
+        return jsonResponse(
+          request,
+          env,
+          {
+            ok: false,
+            error: `Use at least ${PASSWORD_MIN_LENGTH} characters with uppercase, lowercase, and a number.`,
+          },
+          400
+        );
+      }
+
+      passwordRecord = await hashNewPassword(privatePassword, String(env.PASSWORD_PEPPER || ''));
+    }
+
     const timer = await countdownStore.createTimer({
       id: generateCountdownId(),
       token: generateCountdownToken(),
+      startAtMs: nowMs,
       deadlineMs,
-      isPublic: Boolean(body.data.isPublic),
+      isPublic,
+      passSalt: passwordRecord?.salt || '',
+      passHash: passwordRecord?.hash || '',
       createdAtMs: nowMs,
       updatedAtMs: nowMs,
     });
@@ -2536,7 +2814,49 @@ async function handleCountdownTimer(request, env, countdownStore, url, nowMs) {
       return jsonResponse(request, env, { ok: false, error: 'This timer is private. Use the exact private URL token.' }, 403);
     }
 
-    const updated = await countdownStore.setTimerVisibility(id, body.data.isPublic, nowMs);
+    const nextIsPublic = Boolean(body.data.isPublic);
+    const privatePassword = String(body.data.password || '').trim();
+
+    let passSalt = '';
+    let passHash = '';
+    if (!nextIsPublic) {
+      if (privatePassword) {
+        if (!isStrongPassword(privatePassword)) {
+          return jsonResponse(
+            request,
+            env,
+            {
+              ok: false,
+              error: `Use at least ${PASSWORD_MIN_LENGTH} characters with uppercase, lowercase, and a number.`,
+            },
+            400
+          );
+        }
+        const passwordRecord = await hashNewPassword(privatePassword, String(env.PASSWORD_PEPPER || ''));
+        passSalt = passwordRecord.salt;
+        passHash = passwordRecord.hash;
+      } else if (countdownHasStoredPassword(existing)) {
+        passSalt = existing.passSalt;
+        passHash = existing.passHash;
+      } else {
+        return jsonResponse(
+          request,
+          env,
+          { ok: false, error: 'Private countdowns require a password.' },
+          400
+        );
+      }
+    }
+
+    let updated;
+    try {
+      updated = await countdownStore.setTimerVisibility(id, nextIsPublic, nowMs, {
+        passSalt,
+        passHash,
+      });
+    } catch (error) {
+      return jsonResponse(request, env, { ok: false, error: String(error?.message || 'Timer update failed.') }, 400);
+    }
     if (!updated) {
       return jsonResponse(request, env, { ok: false, error: 'Timer update failed.' }, 500);
     }
@@ -2549,6 +2869,69 @@ async function handleCountdownTimer(request, env, countdownStore, url, nowMs) {
   }
 
   return methodNotAllowed(request, env, ['GET', 'POST', 'PATCH']);
+}
+
+async function handleCountdownAccess(request, env, countdownStore, url, nowMs, nowSeconds) {
+  if (!countdownStore) {
+    return jsonResponse(request, env, { ok: false, error: 'Countdown storage is not configured.' }, 503);
+  }
+  if (request.method !== 'POST') {
+    return methodNotAllowed(request, env, ['POST']);
+  }
+
+  const body = await readJsonBody(request);
+  if (!body.ok) {
+    return jsonResponse(request, env, { ok: false, error: body.error }, body.status);
+  }
+
+  const id = normalizeCountdownId(body.data.id);
+  const password = String(body.data.password || '');
+  if (!id || !password) {
+    return jsonResponse(request, env, { ok: false, error: 'Timer id and password are required.' }, 400);
+  }
+
+  const timer = await countdownStore.getTimerById(id);
+  if (!timer) {
+    return jsonResponse(request, env, { ok: false, error: 'That timer link is invalid. Create a new countdown.' }, 404);
+  }
+  if (timer.isPublic) {
+    return jsonResponse(request, env, { ok: false, error: 'This countdown is already public.' }, 400);
+  }
+  if (!countdownHasStoredPassword(timer)) {
+    return jsonResponse(request, env, { ok: false, error: 'Password access is not configured for this countdown.' }, 400);
+  }
+
+  const isMatch = await verifyPassword(password, timer.passSalt, timer.passHash, String(env.PASSWORD_PEPPER || ''));
+  if (!isMatch) {
+    const clearCookie = clearCountdownAccessCookie(timer.id, url, env);
+    return jsonResponse(
+      request,
+      env,
+      { ok: false, error: 'Access denied. Incorrect password.' },
+      401,
+      { cookies: clearCookie ? [clearCookie] : [] }
+    );
+  }
+
+  const expiresAtSeconds = Number(nowSeconds) + COUNTDOWN_ACCESS_MAX_AGE_SECONDS;
+  const accessValue = await createCountdownAccessValue(timer.id, expiresAtSeconds, String(env.SESSION_SECRET || ''));
+  if (!accessValue) {
+    return jsonResponse(request, env, { ok: false, error: 'Unable to issue countdown access token.' }, 500);
+  }
+
+  const accessCookie = buildCountdownAccessCookie(timer.id, accessValue, url, env);
+  return jsonResponse(
+    request,
+    env,
+    {
+      ok: true,
+      serverNowMs: nowMs,
+      timer: countdownClientTimer(timer, false),
+      expiresAtSeconds,
+    },
+    200,
+    { cookies: accessCookie ? [accessCookie] : [] }
+  );
 }
 
 async function handleAuthMe(request, env, store, url, nowSeconds) {
@@ -3690,6 +4073,14 @@ export function createApiHandler(options = {}) {
           });
         }
 
+        if (path === '/api/time') {
+          if (request.method !== 'GET') return methodNotAllowed(request, env, ['GET']);
+          return jsonResponse(request, env, {
+            ok: true,
+            nowMs: now(),
+          });
+        }
+
         if (!env.SESSION_SECRET) {
           return jsonResponse(request, env, { ok: false, error: 'Server auth is not configured.' }, 500);
         }
@@ -3791,7 +4182,11 @@ export function createApiHandler(options = {}) {
         }
 
         if (path === '/api/countdown/timer') {
-          return handleCountdownTimer(request, env, countdownStore, url, nowMs);
+          return handleCountdownTimer(request, env, countdownStore, url, nowMs, nowSeconds);
+        }
+
+        if (path === '/api/countdown/access') {
+          return handleCountdownAccess(request, env, countdownStore, url, nowMs, nowSeconds);
         }
 
         return notFound(request, env);

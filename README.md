@@ -184,7 +184,7 @@ CI runs these steps on push/PR via `.github/workflows/ci.yml`.
 
 - `npm run test:unit` (Node unit + integration tests under `tests/`)
 - `npm run test:smoke` (seeded fixture smoke checks for `/api/maths/*` + crop rendering)
-- `npm run test:e2e` (Playwright UI tests under `qa/e2e/`)
+- `npm run test:e2e` (Playwright UI tests under `tests/e2e/`)
 
 Playwright browser install (one-time on a machine/CI image):
 
@@ -194,7 +194,7 @@ npx playwright install --with-deps
 
 Countdown E2E notes:
 
-- Countdown coverage lives in `tests/e2e/countdown.spec.mjs` (loaded by `qa/e2e/countdown.spec.mjs`).
+- Countdown coverage lives in `tests/e2e/countdown.spec.mjs`.
 - Main scripts:
   - `npm run test:e2e`
   - `npm run test:e2e:ui`
@@ -207,7 +207,7 @@ npm run test:e2e -- --grep countdown
 - Use an external target URL when needed (for example in CI against a deployed env):
 
 ```bash
-PLAYWRIGHT_BASE_URL=https://rishisubjects.co.uk npm run test:e2e -- --grep countdown
+BASE_URL=https://rishisubjects.co.uk npm run test:e2e -- --grep countdown
 ```
 
 ## Deployment
