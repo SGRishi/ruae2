@@ -354,7 +354,7 @@ async function initializeFromRoute() {
     token: effectiveToken,
   });
 
-  if (Boolean(data?.expired)) {
+  if (data?.expired) {
     setError('That timer has expired. Create a fresh countdown.');
   } else {
     setError('');
