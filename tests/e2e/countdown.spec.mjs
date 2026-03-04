@@ -319,7 +319,9 @@ test.describe('countdown route', () => {
     await expect(page.getByTestId('countdown-main')).toBeVisible();
   });
 
-  test('13) fallback route restore from /countdown/?r=... keeps tokenized links working', async ({ page }) => {
+  test('13) fallback route restore from /countdown/?r=... keeps tokenized links working', async ({
+    page,
+  }) => {
     await page.goto('/countdown/', { waitUntil: 'domcontentloaded' });
     const shareUrl = await createTimer(page, { minutes: 9, isPublic: false });
     const restoredPath = toPathnameAndSearch(shareUrl);
