@@ -33,6 +33,34 @@ let embedMode = false;
 let testNowMs =
   TEST_CONFIG && Number.isFinite(Number(TEST_CONFIG.nowMs)) ? Number(TEST_CONFIG.nowMs) : Date.now();
 
+function normalizeBaseUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  return raw.endsWith('/') ? raw.slice(0, -1) : raw;
+}
+
+function resolveApiBase() {
+  const hasConfig =
+    Boolean(window.__APP_CONFIG__) && Object.prototype.hasOwnProperty.call(window.__APP_CONFIG__, 'API_BASE');
+  if (hasConfig) {
+    return normalizeBaseUrl(window.__APP_CONFIG__.API_BASE);
+  }
+
+  const host = String(window.location?.hostname || '').toLowerCase();
+  if (host === 'localhost' || host === '127.0.0.1' || host === '::1') {
+    return '';
+  }
+
+  return 'https://api.rishisubjects.co.uk';
+}
+
+const API_BASE = resolveApiBase();
+
+function toApiUrl(path) {
+  const normalizedPath = String(path || '').startsWith('/') ? path : `/${path}`;
+  return `${API_BASE}${normalizedPath}`;
+}
+
 function maybeRestoreFallbackRoute() {
   const url = new URL(window.location.href);
   if (url.pathname !== '/countdown/index.html') return;
@@ -268,7 +296,7 @@ async function apiRequest(path, options = {}) {
     headers.set('Content-Type', 'application/json; charset=utf-8');
   }
 
-  const response = await fetch(path, {
+  const response = await fetch(toApiUrl(path), {
     method: options.method || 'GET',
     headers,
     body: options.json !== undefined ? JSON.stringify(options.json) : options.body,
