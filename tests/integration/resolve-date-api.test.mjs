@@ -52,7 +52,9 @@ test('resolve-date API uses Responses web_search and returns explicit source URL
   });
 
   const response = await handler.fetch(
-    createApiRequest('/api/resolve-date?q=SQA%20Higher%20maths%20exam%20day&timezone=Europe/London'),
+    createApiRequest(
+      '/api/resolve-date?q=SQA%20Higher%20maths%20exam%20day&timezone=Europe/London'
+    ),
     {
       OPENAI_API_KEY: 'test-openai-key',
     }
@@ -105,12 +107,18 @@ test('resolve-date API caches successful lookups for repeated query+timezone req
   });
 
   const query = encodeURIComponent('cache verification event unique key');
-  const first = await handler.fetch(createApiRequest(`/api/resolve-date?q=${query}&timezone=Europe/London`), {
-    OPENAI_API_KEY: 'test-openai-key',
-  });
-  const second = await handler.fetch(createApiRequest(`/api/resolve-date?q=${query}&timezone=Europe/London`), {
-    OPENAI_API_KEY: 'test-openai-key',
-  });
+  const first = await handler.fetch(
+    createApiRequest(`/api/resolve-date?q=${query}&timezone=Europe/London`),
+    {
+      OPENAI_API_KEY: 'test-openai-key',
+    }
+  );
+  const second = await handler.fetch(
+    createApiRequest(`/api/resolve-date?q=${query}&timezone=Europe/London`),
+    {
+      OPENAI_API_KEY: 'test-openai-key',
+    }
+  );
 
   assert.equal(first.status, 200);
   assert.equal(second.status, 200);
