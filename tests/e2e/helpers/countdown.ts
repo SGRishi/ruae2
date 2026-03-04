@@ -162,6 +162,21 @@ export async function totalSeconds(page: Page): Promise<number> {
 }
 
 export function toPathnameAndSearch(urlValue: string): string {
-  const url = new URL(urlValue);
+  const raw = String(urlValue || '').trim();
+  if (!raw) {
+    throw new Error('Expected URL or iframe snippet but received an empty value.');
+  }
+
+  let candidate = raw;
+  if (raw.startsWith('<')) {
+    const srcMatch = raw.match(/src\s*=\s*"([^"]+)"/i) || raw.match(/src\s*=\s*'([^']+)'/i);
+    candidate = srcMatch?.[1] || '';
+  }
+
+  if (!candidate) {
+    throw new Error(`Unable to parse iframe src from value: ${raw}`);
+  }
+
+  const url = new URL(candidate);
   return `${url.pathname}${url.search}`;
 }

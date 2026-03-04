@@ -278,7 +278,16 @@ h1 {
   margin-bottom: 0.3rem;
 }
 
+.share-grid textarea {
+  margin-bottom: 0.3rem;
+  min-height: 5.3rem;
+  resize: vertical;
+  line-height: 1.35;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
 input:not([type='checkbox']),
+textarea,
 button {
   width: 100%;
   font: inherit;
@@ -314,6 +323,7 @@ button:disabled {
 }
 
 input:focus,
+textarea:focus,
 button:focus {
   outline: 2px solid #8dd8ff;
   outline-offset: 2px;

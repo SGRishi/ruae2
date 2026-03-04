@@ -38,6 +38,7 @@ test.describe('public/private/embed urls', () => {
     });
 
     await expect(page.getByTestId('public-url')).toHaveValue(/\/countdown\//);
+    await expect(page.getByTestId('embed-url')).toHaveValue(/<iframe/i);
     await expect(page.getByTestId('embed-url')).toHaveValue(/embed=1/);
     const publicUrl = await page.getByTestId('public-url').inputValue();
     const embedUrl = await page.getByTestId('embed-url').inputValue();

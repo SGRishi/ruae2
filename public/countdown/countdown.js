@@ -290,6 +290,12 @@ function toEmbedUrl(timer) {
   return url.toString();
 }
 
+function buildEmbedIframe(embedUrl) {
+  const src = String(embedUrl || '').trim();
+  if (!src) return '';
+  return `<iframe src="${src}" title="Countdown timer" style="width:100%;max-width:760px;height:340px;border:0;overflow:hidden;border-radius:12px;" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+}
+
 function syncLayoutMode() {
   const readOnlyView = !embedMode && (passwordGateVisible || Boolean(activeTimer && !activeTimer.canEdit));
   document.body.classList.toggle('countdown-readonly', readOnlyView);
@@ -308,17 +314,24 @@ function updateUrlFields(timerOrId) {
   if (!timerId) {
     if (publicUrlEl) publicUrlEl.value = '';
     if (privateUrlEl) privateUrlEl.value = '';
-    if (embedUrlEl) embedUrlEl.value = '';
+    if (embedUrlEl) {
+      embedUrlEl.value = '';
+      delete embedUrlEl.dataset.embedSrc;
+    }
     return;
   }
 
   const publicUrl = toPublicUrl(timerId);
   const privateUrl = toPrivateUrl(timerId);
   const embedUrl = timer ? toEmbedUrl(timer) : `${publicUrl}?embed=1`;
+  const embedCode = buildEmbedIframe(embedUrl);
 
   if (publicUrlEl) publicUrlEl.value = publicUrl;
   if (privateUrlEl) privateUrlEl.value = privateUrl;
-  if (embedUrlEl) embedUrlEl.value = embedUrl;
+  if (embedUrlEl) {
+    embedUrlEl.value = embedCode;
+    embedUrlEl.dataset.embedSrc = embedUrl;
+  }
 }
 
 function getUnitsFromForm() {
