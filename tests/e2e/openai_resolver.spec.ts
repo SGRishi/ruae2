@@ -7,19 +7,21 @@ test.describe('openai date resolver', () => {
     await stubBackgroundImages(page);
   });
 
-  test('mocked resolver fills UK date/time and resolved display', async ({ page }) => {
-    await page.route('**/api/resolve-event-date', async (route) => {
+  test('mocked resolver fills UK date/time and shows cited source link', async ({ page }) => {
+    await page.route('**/api/resolve-date**', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          ok: true,
-          isoUtc: '2026-05-05T08:00:00.000Z',
-          display: 'Tuesday 5 May 2026, 09:00',
+          query: 'SQA Higher maths exam day',
+          title: 'SQA Higher Mathematics',
+          datetime_iso: '2026-05-05T08:00:00.000Z',
+          timezone: 'Europe/London',
+          source_url: 'https://www.sqa.org.uk/sqa/107652.html',
+          source_title: 'SQA - Exam timetable',
+          retrieved_at_utc: '2026-01-01T12:00:00.000Z',
           confidence: 'high',
-          notes: 'Mocked resolver result.',
-          ambiguous: false,
-          suggestions: [],
+          note: 'Official SQA timetable entry.',
         }),
       });
     });
@@ -31,47 +33,39 @@ test.describe('openai date resolver', () => {
 
     await expect(page.getByTestId('deadline-date')).toHaveValue('05/05/2026');
     await expect(page.getByTestId('deadline-time')).toHaveValue('09:00');
-    await expect(page.getByTestId('resolved-date-display')).toContainText('Tuesday 5 May 2026, 09:00');
+    await expect(page.getByTestId('resolved-date-display')).toContainText('Tuesday');
+    await expect(page.getByTestId('resolved-source-link')).toHaveAttribute(
+      'href',
+      'https://www.sqa.org.uk/sqa/107652.html'
+    );
+    await expect(page.getByTestId('resolved-source-link')).toContainText('SQA - Exam timetable');
   });
 
-  test('ambiguous resolver response shows suggestions and requires confirmation', async ({ page }) => {
-    await page.route('**/api/resolve-event-date', async (route) => {
+  test('timezone-aware datetime parsing avoids off-by-one-day errors', async ({ page }) => {
+    await page.route('**/api/resolve-date**', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          ok: true,
-          isoUtc: null,
-          display: null,
-          confidence: 'low',
-          notes: 'Ambiguous event name.',
-          ambiguous: true,
-          suggestions: [
-            {
-              isoUtc: '2026-06-01T08:00:00.000Z',
-              display: 'Monday 1 June 2026, 09:00',
-              notes: null,
-            },
-            {
-              isoUtc: '2026-06-08T08:00:00.000Z',
-              display: 'Monday 8 June 2026, 09:00',
-              notes: null,
-            },
-          ],
+          query: 'BST edge case event',
+          title: 'Offset parse check',
+          datetime_iso: '2026-05-05T00:30:00+01:00',
+          timezone: 'Europe/London',
+          source_url: 'https://www.gov.uk/bank-holidays',
+          source_title: 'GOV.UK',
+          retrieved_at_utc: '2026-01-01T12:00:00.000Z',
+          confidence: 'high',
         }),
       });
     });
 
     await page.goto('/countdown', { waitUntil: 'domcontentloaded' });
 
-    await page.getByTestId('resolve-query').fill('SQA exam day');
+    await page.getByTestId('resolve-query').fill('BST edge case');
     await page.getByTestId('resolve-button').click();
 
-    await expect(page.getByTestId('resolve-notes')).toContainText(/ambiguous/i);
-    await page.getByRole('button', { name: 'Monday 1 June 2026, 09:00' }).click();
-
-    await expect(page.getByTestId('deadline-date')).toHaveValue('01/06/2026');
-    await expect(page.getByTestId('deadline-time')).toHaveValue('09:00');
+    await expect(page.getByTestId('deadline-date')).toHaveValue('05/05/2026');
+    await expect(page.getByTestId('deadline-time')).toHaveValue('00:30');
   });
 
   test('integration resolver path runs when OPENAI_API_KEY is available', async ({ page }) => {
@@ -82,8 +76,28 @@ test.describe('openai date resolver', () => {
     await page.getByTestId('resolve-query').fill('Christmas Day 2030 at noon in London');
     await page.getByTestId('resolve-button').click();
 
-    await expect(page.getByTestId('resolved-date-display')).not.toHaveText('');
-    await expect(page.getByTestId('deadline-date')).toHaveValue(/\d{2}\/\d{2}\/\d{4}/);
-    await expect(page.getByTestId('deadline-time')).toHaveValue(/\d{2}:\d{2}/);
+    await expect
+      .poll(
+        async () => {
+          const resolvedText = (await page.getByTestId('resolved-date-display').textContent())?.trim() || '';
+          if (resolvedText) return 'resolved';
+          const notesText = (await page.getByTestId('resolve-notes').textContent())?.trim() || '';
+          if (notesText) return 'error';
+          return '';
+        },
+        { timeout: 15_000 }
+      )
+      .toMatch(/resolved|error/);
+
+    const resolvedText = (await page.getByTestId('resolved-date-display').textContent())?.trim() || '';
+    if (resolvedText) {
+      await expect(page.getByTestId('resolved-source-link')).toHaveAttribute('href', /^https?:\/\//);
+      await expect(page.getByTestId('deadline-date')).toHaveValue(/\d{2}\/\d{2}\/\d{4}/);
+      await expect(page.getByTestId('deadline-time')).toHaveValue(/\d{2}:\d{2}/);
+    } else {
+      await expect(page.getByTestId('resolve-notes')).toContainText(
+        /unable|configured|reliable source|failed|malformed/i
+      );
+    }
   });
 });

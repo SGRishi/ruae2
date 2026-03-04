@@ -39,6 +39,8 @@ const resolveButtonEl = document.querySelector('[data-testid="resolve-button"]')
 const resolveNotesEl = document.querySelector('[data-testid="resolve-notes"]');
 const resolveSuggestionsEl = document.querySelector('[data-testid="resolve-suggestions"]');
 const resolvedDateDisplayEl = document.querySelector('[data-testid="resolved-date-display"]');
+const resolvedSourceWrapEl = document.querySelector('[data-testid="resolved-source"]');
+const resolvedSourceLinkEl = document.querySelector('[data-testid="resolved-source-link"]');
 const publicCheckboxEl = document.querySelector('[data-testid="public-checkbox"]');
 const privateCheckboxEl = document.querySelector('[data-testid="private-checkbox"]');
 const setupPasswordInputEl = document.querySelector('[data-testid="setup-password-input"]');
@@ -512,6 +514,23 @@ function formatUkDateForDisplay(epochMs) {
   }
 }
 
+function formatDateForDisplayInTimeZone(epochMs, timeZone = UK_TIME_ZONE) {
+  try {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: String(timeZone || UK_TIME_ZONE),
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(new Date(epochMs));
+  } catch {
+    return formatUkDateForDisplay(epochMs);
+  }
+}
+
 function fillInputsFromEpoch(epochMs) {
   const parts = getUkNumericParts(epochMs);
   const pad = (value) => String(value).padStart(2, '0');
@@ -539,6 +558,21 @@ function setResolvedDateText(epochMs, resolvedLabel = '') {
   const fallback = formatUkDateForDisplay(Number(epochMs));
   const label = String(resolvedLabel || '').trim() || fallback;
   resolvedDateDisplayEl.textContent = label ? `Target date: ${label}` : '';
+}
+
+function setResolvedSource(sourceUrl = '', sourceTitle = '') {
+  if (!resolvedSourceWrapEl || !resolvedSourceLinkEl) return;
+  const href = String(sourceUrl || '').trim();
+  if (!href) {
+    resolvedSourceWrapEl.hidden = true;
+    resolvedSourceLinkEl.removeAttribute('href');
+    resolvedSourceLinkEl.textContent = '';
+    return;
+  }
+
+  resolvedSourceWrapEl.hidden = false;
+  resolvedSourceLinkEl.href = href;
+  resolvedSourceLinkEl.textContent = String(sourceTitle || '').trim() || href;
 }
 
 function computeUnitValues(totalSeconds, units) {
@@ -651,39 +685,20 @@ function messageFromError(data, fallback) {
 function clearResolverUi() {
   if (resolveNotesEl) resolveNotesEl.textContent = '';
   if (resolveSuggestionsEl) resolveSuggestionsEl.innerHTML = '';
+  setResolvedSource('');
 }
 
-function applyResolvedIso(isoUtc, displayText = '') {
+function applyResolvedIso(isoUtc, displayText = '', source = {}) {
   const parsed = Date.parse(String(isoUtc || ''));
   if (!Number.isFinite(parsed)) {
     if (resolveNotesEl) resolveNotesEl.textContent = 'Resolver did not return a valid date.';
+    setResolvedSource('');
     return;
   }
 
   fillInputsFromEpoch(parsed);
   setResolvedDateText(parsed, displayText);
-}
-
-function renderResolverSuggestions(suggestions) {
-  if (!resolveSuggestionsEl) return;
-  resolveSuggestionsEl.innerHTML = '';
-
-  for (const suggestion of suggestions) {
-    const isoUtc = String(suggestion?.isoUtc || '').trim();
-    if (!isoUtc) continue;
-    const label = String(suggestion?.display || '').trim() || formatUkDateForDisplay(Date.parse(isoUtc));
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = label;
-    button.addEventListener('click', () => {
-      applyResolvedIso(isoUtc, label);
-      if (resolveNotesEl) {
-        resolveNotesEl.textContent = 'Date confirmed from suggestion.';
-      }
-      resolveSuggestionsEl.innerHTML = '';
-    });
-    resolveSuggestionsEl.appendChild(button);
-  }
+  setResolvedSource(source.url, source.title);
 }
 
 async function apiRequest(path, options = {}) {
@@ -731,6 +746,7 @@ function resetForNoTimer() {
   syncVisibilityControls();
   setTitleDisplay(titleInputEl?.value || 'Countdown');
   setResolvedDateText(null);
+  setResolvedSource('');
   renderCountdown();
 }
 
@@ -750,6 +766,7 @@ function applyTimer(timer, options = {}) {
   setUnitsInForm(activeTimer.units);
   syncUnitCards(activeTimer.units);
   setResolvedDateText(activeTimer.endAtMs);
+  setResolvedSource('');
 
   const tokenCandidate = Object.prototype.hasOwnProperty.call(options, 'token') ? options.token : ownerToken;
   ownerToken = normalizeToken(tokenCandidate);
@@ -918,13 +935,10 @@ async function onResolveDateClick() {
 
   let result;
   try {
-    result = await apiRequest('/api/resolve-event-date', {
-      method: 'POST',
-      json: {
-        query,
-        timeZone: UK_TIME_ZONE,
-      },
-    });
+    const params = new URLSearchParams();
+    params.set('q', query);
+    params.set('timeZone', UK_TIME_ZONE);
+    result = await apiRequest(`/api/resolve-date?${params.toString()}`);
   } catch {
     if (resolveNotesEl) {
       resolveNotesEl.textContent = 'Unable to resolve a date right now.';
@@ -936,7 +950,7 @@ async function onResolveDateClick() {
   }
 
   const { response, data } = result;
-  if (!response.ok || !data?.ok) {
+  if (!response.ok) {
     if (resolveNotesEl) {
       resolveNotesEl.textContent = messageFromError(data, 'Unable to resolve a date right now.');
     }
@@ -946,26 +960,29 @@ async function onResolveDateClick() {
     return;
   }
 
-  const isoUtc = String(data.isoUtc || '').trim();
-  const display = String(data.display || '').trim();
-  const notes = String(data.notes || '').trim();
-  const ambiguous = Boolean(data.ambiguous);
-  const suggestions = Array.isArray(data.suggestions) ? data.suggestions : [];
+  const isoValue = String(data.datetime_iso || data.isoUtc || '').trim();
+  const sourceUrl = String(data.source_url || data.sourceUrl || '').trim();
+  const sourceTitle = String(data.source_title || data.sourceTitle || '').trim();
+  const timeZone = String(data.timezone || UK_TIME_ZONE).trim() || UK_TIME_ZONE;
+  const notes = String(data.note || data.notes || '').trim();
+  const displayFromApi = String(data.display || '').trim();
 
-  if (ambiguous && suggestions.length) {
+  if (isoValue) {
+    const parsed = Date.parse(isoValue);
+    const displayText = displayFromApi
+      || (Number.isFinite(parsed) ? formatDateForDisplayInTimeZone(parsed, timeZone) : '');
+    applyResolvedIso(isoValue, displayText, {
+      url: sourceUrl,
+      title: sourceTitle,
+    });
     if (resolveNotesEl) {
-      resolveNotesEl.textContent = notes || 'That request is ambiguous. Pick one suggestion to confirm.';
-    }
-    renderResolverSuggestions(suggestions);
-  } else if (isoUtc) {
-    applyResolvedIso(isoUtc, display);
-    if (resolveNotesEl) {
-      resolveNotesEl.textContent = notes || 'Date resolved.';
+      resolveNotesEl.textContent = notes || 'Date resolved from a cited source.';
     }
   } else {
     if (resolveNotesEl) {
       resolveNotesEl.textContent = notes || 'Could not resolve a confident date. Enter it manually.';
     }
+    setResolvedSource('');
   }
 
   if (resolveButtonEl) {

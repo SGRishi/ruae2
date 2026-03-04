@@ -24,7 +24,7 @@ const ADMIN_REVIEW_LIMIT = 200;
 const COUNTDOWN_MAX_FUTURE_MS = 1000 * 60 * 60 * 24 * 365 * 5;
 const COUNTDOWN_TITLE_MAX_LENGTH = 120;
 const COUNTDOWN_UNITS = ['days', 'hours', 'minutes', 'seconds'];
-const EVENT_RESOLVE_CACHE_TTL_MS = 5 * 60 * 1000;
+const EVENT_RESOLVE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 const DEFAULT_ALLOWED_ORIGINS = new Set(['https://rishisubjects.co.uk']);
 const DEV_LOCAL_ORIGINS = new Set([
@@ -2726,41 +2726,61 @@ function formatIsoAsUkDisplay(isoUtc, timeZone = 'Europe/London') {
   }
 }
 
-function normalizeResolverSuggestions(items, timeZone) {
-  if (!Array.isArray(items)) return [];
-  const suggestions = [];
-  for (const item of items.slice(0, 4)) {
-    const isoUtc = normalizeIsoUtc(item?.isoUtc);
-    if (!isoUtc) continue;
-    const display =
-      normalizeResolverText(item?.display, 180) || formatIsoAsUkDisplay(isoUtc, timeZone) || isoUtc;
-    const notes = normalizeResolverText(item?.notes, 260);
-    suggestions.push({
-      isoUtc,
-      display,
-      ...(notes ? { notes } : {}),
-    });
-  }
-  return suggestions;
+function normalizeResolverConfidence(value) {
+  const candidate = String(value || '').toLowerCase().trim();
+  return candidate === 'high' || candidate === 'medium' || candidate === 'low' ? candidate : 'medium';
 }
 
-function normalizeResolvedEventPayload(payload, timeZone) {
-  const isoUtc = normalizeIsoUtc(payload?.isoUtc);
-  const display = normalizeResolverText(payload?.display, 180) || (isoUtc ? formatIsoAsUkDisplay(isoUtc, timeZone) : '');
-  const notes = normalizeResolverText(payload?.notes, 300);
-  const confidence = ['high', 'medium', 'low'].includes(String(payload?.confidence || '').toLowerCase())
-    ? String(payload.confidence).toLowerCase()
-    : 'medium';
-  const ambiguous = Boolean(payload?.ambiguous);
-  const suggestions = normalizeResolverSuggestions(payload?.suggestions, timeZone);
+function normalizeResolverTimeZone(value, fallback = 'Europe/London') {
+  const candidate = normalizeResolverText(value, 80);
+  if (!candidate) return fallback;
+  try {
+    new Intl.DateTimeFormat('en-GB', { timeZone: candidate }).format(new Date());
+    return candidate;
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeResolverSourceUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return '';
+    return parsed.toString();
+  } catch {
+    return '';
+  }
+}
+
+function getResolverSourceTitleFallback(sourceUrl) {
+  const normalized = normalizeResolverSourceUrl(sourceUrl);
+  if (!normalized) return '';
+  try {
+    return new URL(normalized).hostname.replace(/^www\./i, '');
+  } catch {
+    return '';
+  }
+}
+
+function normalizeResolvedDatePayload(payload, query, timeZone) {
+  const datetimeIso = normalizeIsoUtc(payload?.datetime_iso || payload?.isoUtc);
+  const sourceUrl = normalizeResolverSourceUrl(payload?.source_url || payload?.sourceUrl);
+  const sourceTitle = normalizeResolverText(payload?.source_title || payload?.sourceTitle, 180);
+  const title = normalizeResolverText(payload?.title, 180) || normalizeResolverText(query, 180) || 'Resolved event';
+  const timezone = normalizeResolverTimeZone(payload?.timezone || timeZone, timeZone);
+  const confidence = normalizeResolverConfidence(payload?.confidence);
+  const note = normalizeResolverText(payload?.note || payload?.notes, 320);
 
   return {
-    isoUtc,
-    display,
+    title,
+    datetime_iso: datetimeIso,
+    timezone,
+    source_url: sourceUrl,
+    source_title: sourceTitle || getResolverSourceTitleFallback(sourceUrl),
     confidence,
-    notes,
-    ambiguous,
-    suggestions,
+    note,
   };
 }
 
@@ -2799,11 +2819,12 @@ async function resolveEventDateWithAi(env, query, nowMs, timeZone) {
   }
 
   const instructions = [
-    'You resolve natural-language event descriptions into a specific target datetime.',
-    'Assume user locale is UK and timezone is Europe/London unless the query states otherwise.',
-    'Return only valid JSON matching the schema.',
-    'If the request is ambiguous, set ambiguous=true, provide 1-3 concrete suggestions, and avoid guessing.',
-    'When not ambiguous, provide isoUtc in UTC (Z suffix) and a short user-friendly display string.',
+    'Resolve natural-language event descriptions into a verified date and time.',
+    'Always use web search before answering.',
+    'Prefer official and authoritative sources such as government, exam boards, or election authorities.',
+    'If sources conflict, choose the most authoritative source and explain the conflict briefly in note.',
+    'Do not guess. If no reliable source provides a specific date/time, return datetime_iso and source_url as null.',
+    'Return only JSON matching the schema.',
   ].join(' ');
 
   const response = await fetch('https://api.openai.com/v1/responses', {
@@ -2813,43 +2834,33 @@ async function resolveEventDateWithAi(env, query, nowMs, timeZone) {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: String(env.OPENAI_MODEL || 'gpt-4o-mini'),
+      model: String(env.OPENAI_RESOLVE_MODEL || env.OPENAI_MODEL || 'gpt-4o-mini'),
       instructions,
+      tools: [{ type: 'web_search_preview' }],
       input: JSON.stringify({
         query,
         timeZone,
         nowIsoUtc: new Date(nowMs).toISOString(),
       }),
-      temperature: 0.1,
+      temperature: 0,
       text: {
         format: {
           type: 'json_schema',
-          name: 'countdown_event_date',
+          name: 'countdown_resolved_date_with_source',
           strict: true,
           schema: {
             type: 'object',
             additionalProperties: false,
             properties: {
-              isoUtc: { type: ['string', 'null'] },
-              display: { type: 'string' },
+              title: { type: 'string' },
+              datetime_iso: { type: ['string', 'null'] },
+              timezone: { type: 'string' },
+              source_url: { type: ['string', 'null'] },
+              source_title: { type: ['string', 'null'] },
               confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
-              notes: { type: ['string', 'null'] },
-              ambiguous: { type: 'boolean' },
-              suggestions: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  additionalProperties: false,
-                  properties: {
-                    isoUtc: { type: 'string' },
-                    display: { type: 'string' },
-                    notes: { type: ['string', 'null'] },
-                  },
-                  required: ['isoUtc', 'display', 'notes'],
-                },
-              },
+              note: { type: ['string', 'null'] },
             },
-            required: ['isoUtc', 'display', 'confidence', 'notes', 'ambiguous', 'suggestions'],
+            required: ['title', 'datetime_iso', 'timezone', 'source_url', 'source_title', 'confidence', 'note'],
           },
         },
       },
@@ -2892,27 +2903,102 @@ async function resolveEventDateWithAi(env, query, nowMs, timeZone) {
     };
   }
 
-  const normalized = normalizeResolvedEventPayload(parsed, timeZone);
-
-  if (!normalized.isoUtc && !normalized.ambiguous && !normalized.suggestions.length) {
+  const normalized = normalizeResolvedDatePayload(parsed, query, timeZone);
+  if (!normalized.datetime_iso || !normalized.source_url) {
     return {
-      status: 502,
-      body: { ok: false, error: 'Date resolver could not determine a usable target date.' },
+      status: 422,
+      body: {
+        ok: false,
+        error: 'No reliable source with a specific date/time was found for this query.',
+      },
     };
   }
 
   return {
     status: 200,
     body: {
-      ok: true,
-      isoUtc: normalized.isoUtc || null,
-      display: normalized.display || null,
-      confidence: normalized.confidence,
-      notes: normalized.notes || null,
-      ambiguous: normalized.ambiguous || !normalized.isoUtc,
-      suggestions: normalized.suggestions,
       query,
+      title: normalized.title,
+      datetime_iso: normalized.datetime_iso,
+      timezone: normalized.timezone,
+      source_url: normalized.source_url,
+      source_title: normalized.source_title,
+      retrieved_at_utc: new Date(nowMs).toISOString(),
+      confidence: normalized.confidence,
+      ...(normalized.note ? { note: normalized.note } : {}),
     },
+  };
+}
+
+async function resolveEventDateQuery(env, query, nowMs, timeZone) {
+  const normalizedTimeZone = normalizeResolverTimeZone(timeZone || 'Europe/London', 'Europe/London');
+  const cached = getCachedResolvedEventDate(query, normalizedTimeZone, nowMs);
+  if (cached) {
+    return { status: 200, body: cached };
+  }
+
+  const resolved = await resolveEventDateWithAi(env, query, nowMs, normalizedTimeZone);
+  if (resolved.status === 200 && resolved.body?.datetime_iso && resolved.body?.source_url) {
+    cacheResolvedEventDate(query, normalizedTimeZone, nowMs, resolved.body);
+  }
+  return resolved;
+}
+
+async function handleResolveDate(request, env, nowMs) {
+  if (request.method !== 'GET') {
+    return methodNotAllowed(request, env, ['GET']);
+  }
+
+  const url = new URL(request.url);
+  const query = normalizeResolverText(
+    url.searchParams.get('q') || url.searchParams.get('query'),
+    220
+  );
+  if (query.length < 3) {
+    return jsonResponse(
+      request,
+      env,
+      { ok: false, error: 'Describe the event with at least 3 characters.' },
+      400
+    );
+  }
+
+  const timeZone = normalizeResolverTimeZone(
+    url.searchParams.get('timezone') || url.searchParams.get('timeZone') || 'Europe/London',
+    'Europe/London'
+  );
+  const resolved = await resolveEventDateQuery(env, query, nowMs, timeZone);
+  return jsonResponse(request, env, resolved.body, resolved.status);
+}
+
+function toLegacyResolveEventDateBody(result, fallbackTimeZone) {
+  const isoUtc = normalizeIsoUtc(result?.datetime_iso);
+  const resolvedTimeZone = normalizeResolverTimeZone(
+    result?.timezone || fallbackTimeZone || 'Europe/London',
+    'Europe/London'
+  );
+  const display = formatIsoAsUkDisplay(isoUtc, resolvedTimeZone);
+  const note = normalizeResolverText(result?.note, 320);
+  const sourceUrl = normalizeResolverSourceUrl(result?.source_url);
+  const sourceTitle = normalizeResolverText(result?.source_title, 180)
+    || getResolverSourceTitleFallback(sourceUrl);
+  const sourceNote = sourceUrl ? `Source: ${sourceTitle || sourceUrl}` : '';
+  const mergedNotes = [note, sourceNote].filter(Boolean).join(' ').trim();
+
+  return {
+    ok: true,
+    isoUtc: isoUtc || null,
+    display: display || null,
+    confidence: normalizeResolverConfidence(result?.confidence),
+    notes: mergedNotes || null,
+    ambiguous: false,
+    suggestions: [],
+    query: normalizeResolverText(result?.query, 220),
+    sourceUrl: sourceUrl || null,
+    sourceTitle: sourceTitle || null,
+    timezone: resolvedTimeZone,
+    retrievedAtUtc: normalizeIsoUtc(result?.retrieved_at_utc) || new Date().toISOString(),
+    title: normalizeResolverText(result?.title, 180) || null,
   };
 }
 
@@ -2936,17 +3022,24 @@ async function handleResolveEventDate(request, env, nowMs) {
     );
   }
 
-  const timeZone = normalizeResolverText(body.data.timeZone || 'Europe/London', 80) || 'Europe/London';
-  const cached = getCachedResolvedEventDate(query, timeZone, nowMs);
-  if (cached) {
-    return jsonResponse(request, env, cached, 200);
+  const timeZone = normalizeResolverTimeZone(body.data.timeZone || 'Europe/London', 'Europe/London');
+  const resolved = await resolveEventDateQuery(env, query, nowMs, timeZone);
+
+  if (resolved.status !== 200) {
+    return jsonResponse(request, env, resolved.body, resolved.status);
   }
 
-  const resolved = await resolveEventDateWithAi(env, query, nowMs, timeZone);
-  if (resolved.status === 200 && resolved.body?.ok) {
-    cacheResolvedEventDate(query, timeZone, nowMs, resolved.body);
+  const legacyBody = toLegacyResolveEventDateBody(resolved.body, timeZone);
+  if (!legacyBody.isoUtc) {
+    return jsonResponse(
+      request,
+      env,
+      { ok: false, error: 'Date resolver could not determine a usable target date.' },
+      422
+    );
   }
-  return jsonResponse(request, env, resolved.body, resolved.status);
+
+  return jsonResponse(request, env, legacyBody, 200);
 }
 
 function extractCsrfToken(request, payload) {
@@ -4433,6 +4526,10 @@ export function createApiHandler(options = {}) {
             ok: true,
             nowMs: now(),
           });
+        }
+
+        if (path === '/api/resolve-date') {
+          return handleResolveDate(request, env, now());
         }
 
         if (path === '/api/resolve-event-date') {
