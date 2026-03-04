@@ -4,7 +4,7 @@
     (currentPath === '/countdown' || currentPath === '/countdown/' || currentPath.startsWith('/countdown/'))
     && currentPath !== '/countdown/index.html'
   ) {
-    const target = new URL('/countdown/index.html', window.location.origin);
+    const target = new URL('/countdown/', window.location.origin);
     const routeValue = `${currentPath}${window.location.search || ''}${window.location.hash || ''}`;
     if (currentPath !== '/countdown' && currentPath !== '/countdown/') {
       target.searchParams.set('r', routeValue);

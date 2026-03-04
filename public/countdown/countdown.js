@@ -64,13 +64,15 @@ function toApiUrl(path) {
 
 function maybeRestoreFallbackRoute() {
   const url = new URL(window.location.href);
-  if (url.pathname !== '/countdown/index.html') return;
+  const path = String(url.pathname || '');
+  const isFallbackPath = path === '/countdown/index.html' || path === '/countdown/' || path === '/countdown';
+  if (!isFallbackPath) return;
 
   const rawRoute = String(url.searchParams.get('r') || '').trim();
   if (!rawRoute || !rawRoute.startsWith('/countdown/')) return;
 
   // When static hosting falls back unknown paths to homepage, route users back
-  // through countdown/index.html and restore the original tokenized URL here.
+  // through countdown and restore the original tokenized URL here.
   window.history.replaceState(null, '', rawRoute);
 }
 

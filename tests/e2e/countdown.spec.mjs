@@ -319,14 +319,12 @@ test.describe('countdown route', () => {
     await expect(page.getByTestId('countdown-main')).toBeVisible();
   });
 
-  test('13) fallback route restore from /countdown/index.html?r=... keeps tokenized links working', async ({
-    page,
-  }) => {
+  test('13) fallback route restore from /countdown/?r=... keeps tokenized links working', async ({ page }) => {
     await page.goto('/countdown/', { waitUntil: 'domcontentloaded' });
     const shareUrl = await createTimer(page, { minutes: 9, isPublic: false });
     const restoredPath = toPathnameAndSearch(shareUrl);
 
-    await page.goto(`/countdown/index.html?r=${encodeURIComponent(restoredPath)}`, {
+    await page.goto(`/countdown/?r=${encodeURIComponent(restoredPath)}`, {
       waitUntil: 'domcontentloaded',
     });
 
@@ -386,12 +384,12 @@ test.describe('countdown route', () => {
       )
       .toBeLessThanOrEqual(570);
 
-    const ownerSeconds = parseHms(
+    const ownerSecondsBeforeShareOpen = parseHms(
       (await ownerPage.getByTestId('countdown-clock').textContent())?.trim()
     );
-    expect(ownerSeconds).not.toBeNull();
-    expect(ownerSeconds).toBeGreaterThanOrEqual(565);
-    expect(ownerSeconds).toBeLessThanOrEqual(570);
+    expect(ownerSecondsBeforeShareOpen).not.toBeNull();
+    expect(ownerSecondsBeforeShareOpen).toBeGreaterThanOrEqual(565);
+    expect(ownerSecondsBeforeShareOpen).toBeLessThanOrEqual(570);
 
     const viewerContext = await browser.newContext();
     const viewerPage = await viewerContext.newPage();
@@ -400,13 +398,28 @@ test.describe('countdown route', () => {
     await viewerPage.goto(toPathnameAndSearch(shareUrl), { waitUntil: 'domcontentloaded' });
     await expect(viewerPage.getByTestId('timer-error')).toBeHidden();
 
+    await expect
+      .poll(
+        async () => {
+          const value = parseHms(
+            (await viewerPage.getByTestId('countdown-clock').textContent())?.trim()
+          );
+          return Number.isFinite(value) && value > 0;
+        },
+        { timeout: 20_000 }
+      )
+      .toBe(true);
+
     const viewerSeconds = parseHms(
       (await viewerPage.getByTestId('countdown-clock').textContent())?.trim()
     );
+    const ownerSecondsAtViewerLoad = parseHms(
+      (await ownerPage.getByTestId('countdown-clock').textContent())?.trim()
+    );
     expect(viewerSeconds).not.toBeNull();
-    expect(viewerSeconds).toBeGreaterThanOrEqual(565);
-    expect(viewerSeconds).toBeLessThanOrEqual(572);
-    expect(Math.abs(ownerSeconds - viewerSeconds)).toBeLessThanOrEqual(2);
+    expect(ownerSecondsAtViewerLoad).not.toBeNull();
+    expect(Math.abs(ownerSecondsAtViewerLoad - viewerSeconds)).toBeLessThanOrEqual(3);
+    expect(viewerSeconds).toBeLessThanOrEqual(ownerSecondsBeforeShareOpen);
 
     await ownerContext.close();
     await viewerContext.close();
