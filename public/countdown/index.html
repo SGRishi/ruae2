@@ -9,7 +9,7 @@
       content="Create polished countdowns with scenery backdrops, progress tracking, and ambient audio."
     />
     <meta name="robots" content="noindex,nofollow" data-testid="robots-meta" />
-    <link rel="stylesheet" href="/countdown/countdown.css?v=20260304i" />
+    <link rel="stylesheet" href="/countdown/countdown.css?v=20260304j" />
   </head>
   <body class="countdown-page">
     <div class="countdown-background" data-testid="bg-image" aria-hidden="true"></div>
@@ -186,6 +186,18 @@
             <button type="button" data-testid="music-play">Play ambient</button>
             <button type="button" data-testid="music-pause">Pause ambient</button>
           </div>
+          <label class="audio-volume" for="volumeSlider">
+            <span>Volume</span>
+            <input
+              id="volumeSlider"
+              data-testid="volume-slider"
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value="0.7"
+            />
+          </label>
           <p class="audio-status" data-testid="audio-status" aria-live="polite">Ambient paused.</p>
           <p class="music-error" data-testid="music-error" hidden></p>
         </section>
@@ -204,6 +216,6 @@
     </main>
 
     <script src="/runtime-config.js?v=20260214"></script>
-    <script src="/countdown/countdown.js?v=20260304i" type="module"></script>
+    <script src="/countdown/countdown.js?v=20260304j" type="module"></script>
   </body>
 </html>

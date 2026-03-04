@@ -14,9 +14,17 @@ test.describe('ambient music', () => {
       'src',
       'https://ice-the.musicradio.com/ClassicFMMP3'
     );
+    await expect(page.getByTestId('volume-slider')).toBeVisible();
 
     const initiallyPaused = await page.getByTestId('audio-element').evaluate((el) => el.paused);
     expect(initiallyPaused).toBe(true);
+
+    await page.getByTestId('volume-slider').fill('0.25');
+    await expect
+      .poll(() =>
+        page.getByTestId('audio-element').evaluate((el) => Number((el as HTMLAudioElement).volume.toFixed(2)))
+      )
+      .toBe(0.25);
 
     await page.getByTestId('music-play').click();
 

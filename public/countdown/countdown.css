@@ -341,6 +341,19 @@ button:focus {
   gap: 0.5rem;
 }
 
+.audio-volume {
+  display: grid;
+  gap: 0.4rem;
+  align-items: center;
+  color: #d6e8f9;
+  font-size: 0.84rem;
+  letter-spacing: 0.03em;
+}
+
+.audio-volume input[type='range'] {
+  width: 100%;
+}
+
 .audio-status {
   margin: 0;
   min-height: 1.2em;
@@ -405,6 +418,17 @@ body.countdown-embed .countdown-shell {
   width: min(44rem, 100%);
   gap: 0.55rem;
   padding: 0.7rem;
+}
+
+body.countdown-readonly .timer-form,
+body.countdown-readonly .share-grid,
+body.countdown-readonly .actions-row,
+body.countdown-readonly .credits,
+body.countdown-readonly .error-message,
+body.countdown-readonly .test-control,
+body.countdown-readonly .resolve-row,
+body.countdown-readonly h1 {
+  display: none;
 }
 
 @media (max-width: 860px) {

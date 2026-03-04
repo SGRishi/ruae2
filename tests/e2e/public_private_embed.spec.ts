@@ -46,9 +46,13 @@ test.describe('public/private/embed urls', () => {
 
     const viewerA = await openIsolated(mkContext, toPathnameAndSearch(publicUrl));
     await expect(viewerA.page.getByTestId('countdown-display')).toBeVisible();
+    await expect(viewerA.page.getByTestId('timer-form')).toBeHidden();
+    await expect(viewerA.page.getByTestId('music-play')).toBeVisible();
+    await expect(viewerA.page.getByTestId('volume-slider')).toBeVisible();
 
     const viewerB = await openIsolated(mkContext, toPathnameAndSearch(publicUrl));
     await expect(viewerB.page.getByTestId('countdown-display')).toBeVisible();
+    await expect(viewerB.page.getByTestId('timer-form')).toBeHidden();
 
     const [secondsA, secondsB] = await Promise.all([
       totalSeconds(viewerA.page),
@@ -60,6 +64,8 @@ test.describe('public/private/embed urls', () => {
     const embedViewer = await openIsolated(mkContext, toPathnameAndSearch(embedUrl));
     await expect(embedViewer.page.getByTestId('countdown-display')).toBeVisible();
     await expect(embedViewer.page.getByTestId('timer-form')).toBeHidden();
+    await expect(embedViewer.page.getByTestId('music-play')).toBeHidden();
+    await expect(embedViewer.page.getByTestId('volume-slider')).toBeHidden();
 
     const iframeHost = await openIsolated(mkContext, '/countdown');
     await iframeHost.page.setContent(
@@ -96,6 +102,9 @@ test.describe('public/private/embed urls', () => {
     await privateViewer.page.getByTestId('password-submit').click();
     await expect(privateViewer.page.getByTestId('password-gate')).toBeHidden();
     await expect(privateViewer.page.getByTestId('countdown-display')).toBeVisible();
+    await expect(privateViewer.page.getByTestId('timer-form')).toBeHidden();
+    await expect(privateViewer.page.getByTestId('music-play')).toBeVisible();
+    await expect(privateViewer.page.getByTestId('volume-slider')).toBeVisible();
 
     await Promise.all([
       viewerA.context.close(),

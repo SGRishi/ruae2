@@ -62,6 +62,7 @@ const progressPercentEl = document.querySelector('[data-testid="progress-percent
 const audioEl = document.querySelector('[data-testid="audio-element"]');
 const musicPlayEl = document.querySelector('[data-testid="music-play"]');
 const musicPauseEl = document.querySelector('[data-testid="music-pause"]');
+const volumeSliderEl = document.querySelector('[data-testid="volume-slider"]');
 const audioStatusEl = document.querySelector('[data-testid="audio-status"]');
 const musicErrorEl = document.querySelector('[data-testid="music-error"]');
 const robotsMetaEl = document.querySelector('meta[name="robots"]');
@@ -253,6 +254,7 @@ function showPasswordGate(show) {
   passwordGateVisible = Boolean(show);
   if (!passwordGateEl) return;
   passwordGateEl.hidden = !passwordGateVisible;
+  syncLayoutMode();
 }
 
 function setMusicError(message) {
@@ -286,6 +288,11 @@ function toEmbedUrl(timer) {
   const url = new URL(timer.isPublic ? toPublicUrl(timer.id) : toPrivateUrl(timer.id));
   url.searchParams.set('embed', '1');
   return url.toString();
+}
+
+function syncLayoutMode() {
+  const readOnlyView = !embedMode && (passwordGateVisible || Boolean(activeTimer && !activeTimer.canEdit));
+  document.body.classList.toggle('countdown-readonly', readOnlyView);
 }
 
 function updateUrlFields(timerOrId) {
@@ -1143,6 +1150,14 @@ function pauseAmbient() {
   audioStatusEl.textContent = 'Ambient paused.';
 }
 
+function syncAmbientVolume() {
+  if (!audioEl || !volumeSliderEl) return;
+  const parsed = Number(volumeSliderEl.value);
+  const nextVolume = Number.isFinite(parsed) ? clamp(parsed, 0, 1) : 0.7;
+  audioEl.volume = nextVolume;
+  volumeSliderEl.value = String(nextVolume);
+}
+
 function setupEvents() {
   formEl?.addEventListener('submit', onFormSubmit);
   makePublicButtonEl?.addEventListener('click', onMakePublicButtonClick);
@@ -1156,6 +1171,8 @@ function setupEvents() {
   resolveButtonEl?.addEventListener('click', onResolveDateClick);
   musicPlayEl?.addEventListener('click', playAmbient);
   musicPauseEl?.addEventListener('click', pauseAmbient);
+  volumeSliderEl?.addEventListener('input', syncAmbientVolume);
+  volumeSliderEl?.addEventListener('change', syncAmbientVolume);
   bgNextEl?.addEventListener('click', () => {
     if (!IS_TEST_MODE) return;
     rotateBackground();
@@ -1262,6 +1279,7 @@ function setupTestApi() {
 function initializeAudio() {
   if (!audioEl) return;
   audioEl.src = CLASSIC_FM_STREAM;
+  syncAmbientVolume();
 }
 
 async function init() {
@@ -1270,6 +1288,7 @@ async function init() {
   if (embedMode) {
     document.body.classList.add('countdown-embed');
   }
+  syncLayoutMode();
 
   setBackground(currentBackgroundIndex);
   updateUrlFields('');
