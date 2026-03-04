@@ -1071,6 +1071,13 @@ function normalizeCountdownDeadlineMs(value) {
   return Math.floor(deadlineMs);
 }
 
+function normalizeCountdownDurationMinutes(value) {
+  const minutes = Number.parseInt(String(value || ''), 10);
+  if (!Number.isFinite(minutes)) return null;
+  if (minutes <= 0) return null;
+  return Math.floor(minutes);
+}
+
 function countdownRowToTimer(row) {
   if (!row) return null;
   return {
@@ -2463,6 +2470,7 @@ async function handleCountdownTimer(request, env, countdownStore, url, nowMs) {
 
     return jsonResponse(request, env, {
       ok: true,
+      serverNowMs: nowMs,
       timer: countdownClientTimer(timer, hasValidToken),
       expired: Number(timer.deadlineMs) <= Number(nowMs),
     });
@@ -2474,7 +2482,10 @@ async function handleCountdownTimer(request, env, countdownStore, url, nowMs) {
       return jsonResponse(request, env, { ok: false, error: body.error }, body.status);
     }
 
-    const deadlineMs = normalizeCountdownDeadlineMs(body.data.deadlineMs);
+    const durationMinutes = normalizeCountdownDurationMinutes(body.data.durationMinutes);
+    const deadlineMs = durationMinutes
+      ? nowMs + durationMinutes * 60_000
+      : normalizeCountdownDeadlineMs(body.data.deadlineMs);
     if (!Number.isFinite(deadlineMs)) {
       return jsonResponse(request, env, { ok: false, error: 'Deadline must be a valid timestamp.' }, 400);
     }
@@ -2496,6 +2507,7 @@ async function handleCountdownTimer(request, env, countdownStore, url, nowMs) {
 
     return jsonResponse(request, env, {
       ok: true,
+      serverNowMs: nowMs,
       timer: countdownClientTimer(timer, true),
       ownerToken: timer.token,
     });
@@ -2531,6 +2543,7 @@ async function handleCountdownTimer(request, env, countdownStore, url, nowMs) {
 
     return jsonResponse(request, env, {
       ok: true,
+      serverNowMs: nowMs,
       timer: countdownClientTimer(updated, true),
     });
   }

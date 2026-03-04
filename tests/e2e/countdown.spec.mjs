@@ -365,4 +365,50 @@ test.describe('countdown route', () => {
 
     await viewer.context.close();
   });
+
+  test('15) shared URL keeps elapsed time in sync (10:00 -> about 09:30 after 30 seconds)', async ({
+    browser,
+  }) => {
+    test.setTimeout(120_000);
+
+    const ownerContext = await browser.newContext();
+    const ownerPage = await ownerContext.newPage();
+    await stubBackgroundImages(ownerPage);
+
+    await ownerPage.goto('/countdown/', { waitUntil: 'domcontentloaded' });
+    const shareUrl = await createTimer(ownerPage, { minutes: 10, isPublic: true });
+
+    await expect
+      .poll(
+        async () =>
+          parseHms((await ownerPage.getByTestId('countdown-clock').textContent())?.trim()),
+        { timeout: 45_000 }
+      )
+      .toBeLessThanOrEqual(570);
+
+    const ownerSeconds = parseHms(
+      (await ownerPage.getByTestId('countdown-clock').textContent())?.trim()
+    );
+    expect(ownerSeconds).not.toBeNull();
+    expect(ownerSeconds).toBeGreaterThanOrEqual(565);
+    expect(ownerSeconds).toBeLessThanOrEqual(570);
+
+    const viewerContext = await browser.newContext();
+    const viewerPage = await viewerContext.newPage();
+    await stubBackgroundImages(viewerPage);
+
+    await viewerPage.goto(toPathnameAndSearch(shareUrl), { waitUntil: 'domcontentloaded' });
+    await expect(viewerPage.getByTestId('timer-error')).toBeHidden();
+
+    const viewerSeconds = parseHms(
+      (await viewerPage.getByTestId('countdown-clock').textContent())?.trim()
+    );
+    expect(viewerSeconds).not.toBeNull();
+    expect(viewerSeconds).toBeGreaterThanOrEqual(565);
+    expect(viewerSeconds).toBeLessThanOrEqual(572);
+    expect(Math.abs(ownerSeconds - viewerSeconds)).toBeLessThanOrEqual(2);
+
+    await ownerContext.close();
+    await viewerContext.close();
+  });
 });

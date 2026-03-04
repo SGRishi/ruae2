@@ -53,6 +53,7 @@ test('countdown API: public timers are readable without auth and preserve countd
 
   assert.equal(created.response.status, 200);
   assert.equal(created.data.ok, true);
+  assert.equal(Number.isFinite(Number(created.data.serverNowMs)), true);
   assert.equal(created.data.timer.isPublic, true);
   assert.equal(typeof created.data.timer.id, 'string');
   assert.equal(typeof created.data.ownerToken, 'string');
@@ -66,6 +67,7 @@ test('countdown API: public timers are readable without auth and preserve countd
   );
   assert.equal(publicRead.response.status, 200);
   assert.equal(publicRead.data.ok, true);
+  assert.equal(Number.isFinite(Number(publicRead.data.serverNowMs)), true);
   assert.equal(publicRead.data.timer.id, timerId);
   assert.equal(publicRead.data.timer.canEdit, false);
 
@@ -75,8 +77,35 @@ test('countdown API: public timers are readable without auth and preserve countd
     `/api/countdown/timer?id=${encodeURIComponent(timerId)}&token=${encodeURIComponent(created.data.ownerToken)}`
   );
   assert.equal(ownerRead.response.status, 200);
+  assert.equal(Number.isFinite(Number(ownerRead.data.serverNowMs)), true);
   assert.equal(ownerRead.data.timer.canEdit, true);
   assert.equal(ownerRead.data.timer.deadlineMs, created.data.timer.deadlineMs);
+});
+
+test('countdown API: durationMinutes creates server-timed deadlines', async () => {
+  const fixedNow = Date.UTC(2026, 0, 1, 12, 0, 0);
+  const handler = createApiHandler({ now: () => fixedNow });
+
+  const env = {
+    SESSION_SECRET: 'test-session-secret',
+    PASSWORD_PEPPER: 'test-pepper',
+    ALLOWED_ORIGINS: 'https://rishisubjects.co.uk',
+    AUTH_STORE: createMemoryStore(),
+    COUNTDOWN_STORE: createMemoryCountdownStore(),
+  };
+
+  const created = await apiCall(handler, env, '/api/countdown/timer', {
+    method: 'POST',
+    json: {
+      durationMinutes: 10,
+      isPublic: true,
+    },
+  });
+
+  assert.equal(created.response.status, 200);
+  assert.equal(created.data.ok, true);
+  assert.equal(created.data.serverNowMs, fixedNow);
+  assert.equal(created.data.timer.deadlineMs, fixedNow + 10 * 60_000);
 });
 
 test('countdown API: private timers require exact token and can be toggled public', async () => {
@@ -132,6 +161,7 @@ test('countdown API: private timers require exact token and can be toggled publi
     },
   });
   assert.equal(toggled.response.status, 200);
+  assert.equal(Number.isFinite(Number(toggled.data.serverNowMs)), true);
   assert.equal(toggled.data.timer.isPublic, true);
 
   const nowPublic = await apiCall(

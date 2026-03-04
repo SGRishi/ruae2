@@ -30,6 +30,7 @@ let activeTimer = null;
 let ownerToken = '';
 let currentBackgroundIndex = 0;
 let embedMode = false;
+let serverTimeOffsetMs = 0;
 let testNowMs =
   TEST_CONFIG && Number.isFinite(Number(TEST_CONFIG.nowMs)) ? Number(TEST_CONFIG.nowMs) : Date.now();
 
@@ -77,8 +78,18 @@ function isEmbedMode() {
   return new URL(window.location.href).searchParams.get('embed') === '1';
 }
 
-function getNowMs() {
+function getClientNowMs() {
   return TEST_CONFIG ? testNowMs : Date.now();
+}
+
+function syncServerClock(serverNowMs) {
+  const parsed = Number(serverNowMs);
+  if (!Number.isFinite(parsed)) return;
+  serverTimeOffsetMs = parsed - getClientNowMs();
+}
+
+function getNowMs() {
+  return getClientNowMs() + serverTimeOffsetMs;
 }
 
 function normalizeToken(value) {
@@ -372,6 +383,7 @@ async function initializeFromRoute() {
     resetForNoTimer();
     return;
   }
+  syncServerClock(data?.serverNowMs);
 
   const canEdit = Boolean(timer.canEdit);
   const effectiveToken = canEdit ? token : '';
@@ -439,26 +451,26 @@ async function onFormSubmit(event) {
   const durationMinutes = coercePositiveInteger(durationInputEl?.value || '');
   const deadlineFromInput = parseDeadlineInput(deadlineInputEl?.value || '');
 
-  let deadlineMs = null;
-  if (durationMinutes) {
-    deadlineMs = getNowMs() + durationMinutes * 60_000;
-  } else if (deadlineFromInput) {
-    deadlineMs = deadlineFromInput;
-  }
-
-  if (!deadlineMs || deadlineMs <= getNowMs()) {
+  if (!durationMinutes && (!deadlineFromInput || deadlineFromInput <= getNowMs())) {
     setError('Enter a future deadline or a positive duration in minutes.');
     return;
+  }
+
+  const payload = {
+    isPublic: Boolean(privacyToggleEl?.checked),
+  };
+
+  if (durationMinutes) {
+    payload.durationMinutes = durationMinutes;
+  } else {
+    payload.deadlineMs = deadlineFromInput;
   }
 
   let result;
   try {
     result = await apiRequest('/api/countdown/timer', {
       method: 'POST',
-      json: {
-        deadlineMs,
-        isPublic: Boolean(privacyToggleEl?.checked),
-      },
+      json: payload,
     });
   } catch {
     setError('Unable to create timer right now.');
@@ -470,6 +482,7 @@ async function onFormSubmit(event) {
     setError(messageFromError(data, 'Unable to create timer right now.'));
     return;
   }
+  syncServerClock(data?.serverNowMs);
 
   applyTimer(data.timer, {
     replaceHistory: false,
@@ -508,6 +521,7 @@ async function onPrivacyToggle() {
     setError(messageFromError(data, 'Unable to update privacy right now.'));
     return;
   }
+  syncServerClock(data?.serverNowMs);
 
   applyTimer(data.timer, {
     replaceHistory: true,
@@ -558,7 +572,7 @@ function setupTestApi() {
       updateCountdownText();
     },
     nowMs() {
-      return testNowMs;
+      return getNowMs();
     },
   };
 }
