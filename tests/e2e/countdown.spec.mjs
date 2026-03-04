@@ -77,8 +77,8 @@ test.describe('countdown route', () => {
       ];
 
       return pairs.every(([labelId, valueId]) => {
-        const label = document.querySelector(`[data-testid="${labelId}"]`);
-        const value = document.querySelector(`[data-testid="${valueId}"]`);
+        const label = globalThis.document.querySelector(`[data-testid="${labelId}"]`);
+        const value = globalThis.document.querySelector(`[data-testid="${valueId}"]`);
         if (!label || !value) return false;
         const labelRect = label.getBoundingClientRect();
         const valueRect = value.getBoundingClientRect();
