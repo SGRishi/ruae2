@@ -1096,8 +1096,32 @@ function createCountdownD1Store(db) {
     throw new Error('DB binding is missing or invalid.');
   }
 
+  let readyPromise = null;
+  async function ensureReady() {
+    if (!readyPromise) {
+      readyPromise = (async () => {
+        await db.prepare(
+          `CREATE TABLE IF NOT EXISTS countdown_timers (
+            id TEXT PRIMARY KEY,
+            token TEXT NOT NULL,
+            deadline_ms INTEGER NOT NULL,
+            is_public INTEGER NOT NULL DEFAULT 0,
+            created_at_ms INTEGER NOT NULL,
+            updated_at_ms INTEGER NOT NULL
+          )`
+        ).run();
+        await db.prepare(
+          `CREATE INDEX IF NOT EXISTS idx_countdown_timers_deadline
+           ON countdown_timers (deadline_ms)`
+        ).run();
+      })();
+    }
+    await readyPromise;
+  }
+
   return {
     async createTimer(record) {
+      await ensureReady();
       const id = normalizeCountdownId(record?.id);
       const token = normalizeCountdownToken(record?.token);
       const deadlineMs = normalizeCountdownDeadlineMs(record?.deadlineMs);
@@ -1120,6 +1144,7 @@ function createCountdownD1Store(db) {
     },
 
     async getTimerById(timerId) {
+      await ensureReady();
       const id = normalizeCountdownId(timerId);
       if (!id) return null;
       const row = await db.prepare(
@@ -1134,6 +1159,7 @@ function createCountdownD1Store(db) {
     },
 
     async setTimerVisibility(timerId, isPublic, updatedAtMs) {
+      await ensureReady();
       const id = normalizeCountdownId(timerId);
       if (!id) return null;
       await db.prepare(
