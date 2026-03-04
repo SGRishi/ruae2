@@ -3201,14 +3201,11 @@ async function handleCountdownTimer(request, env, countdownStore, url, nowMs, no
     let passwordRecord = null;
 
     if (!isPublic) {
-      if (!isStrongPassword(privatePassword)) {
+      if (!privatePassword) {
         return jsonResponse(
           request,
           env,
-          {
-            ok: false,
-            error: `Use at least ${PASSWORD_MIN_LENGTH} characters with uppercase, lowercase, and a number.`,
-          },
+          { ok: false, error: 'Private countdowns require a password.' },
           400
         );
       }
@@ -3268,17 +3265,6 @@ async function handleCountdownTimer(request, env, countdownStore, url, nowMs, no
     let passHash = '';
     if (!nextIsPublic) {
       if (privatePassword) {
-        if (!isStrongPassword(privatePassword)) {
-          return jsonResponse(
-            request,
-            env,
-            {
-              ok: false,
-              error: `Use at least ${PASSWORD_MIN_LENGTH} characters with uppercase, lowercase, and a number.`,
-            },
-            400
-          );
-        }
         const passwordRecord = await hashNewPassword(privatePassword, String(env.PASSWORD_PEPPER || ''));
         passSalt = passwordRecord.salt;
         passHash = passwordRecord.hash;

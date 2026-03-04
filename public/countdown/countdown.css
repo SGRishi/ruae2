@@ -246,17 +246,39 @@ h1 {
   gap: 0.5rem;
 }
 
+.units-fieldset {
+  justify-items: start;
+}
+
 .inline-control {
   display: flex;
   align-items: center;
   gap: 0.6rem;
 }
 
+.units-fieldset .inline-control {
+  justify-content: flex-start;
+  width: fit-content;
+  gap: 0.45rem;
+}
+
+.unit-option {
+  flex-direction: row;
+}
+
+.unit-option .inline-text {
+  order: 1;
+}
+
+.unit-option input[type='checkbox'] {
+  order: 2;
+}
+
 .share-grid input {
   margin-bottom: 0.3rem;
 }
 
-input,
+input:not([type='checkbox']),
 button {
   width: 100%;
   font: inherit;
@@ -265,6 +287,15 @@ button {
   border-radius: 0.56rem;
   background: rgba(9, 24, 38, 0.94);
   padding: 0.62rem 0.72rem;
+}
+
+input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  padding: 0;
+  accent-color: #8ecbf2;
+  flex: 0 0 auto;
 }
 
 button {

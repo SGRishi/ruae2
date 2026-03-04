@@ -167,7 +167,7 @@ test('countdown API: private timers require password and can be unlocked via acc
       json: {
         deadlineMs: fixedNow + 20 * 60_000,
         isPublic: false,
-        password: 'StrongPassword123',
+        password: 'a',
       },
     },
     cookieJar
@@ -194,7 +194,7 @@ test('countdown API: private timers require password and can be unlocked via acc
       method: 'POST',
       json: {
         id: timerId,
-        password: 'WrongPassword123',
+        password: 'b',
       },
     },
     cookieJar
@@ -209,7 +209,7 @@ test('countdown API: private timers require password and can be unlocked via acc
       method: 'POST',
       json: {
         id: timerId,
-        password: 'StrongPassword123',
+        password: 'a',
       },
     },
     cookieJar
@@ -248,7 +248,7 @@ test('countdown API: owner can toggle public/private and private requires passwo
     json: {
       deadlineMs: fixedNow + 20 * 60_000,
       isPublic: false,
-      password: 'StrongPassword123',
+      password: 'a',
     },
   });
 
@@ -282,7 +282,7 @@ test('countdown API: owner can toggle public/private and private requires passwo
       id: timerId,
       token: ownerToken,
       isPublic: false,
-      password: 'StrongPassword123',
+      password: 'z',
     },
   });
   assert.equal(backToPrivate.response.status, 200);

@@ -407,6 +407,17 @@ function syncVisibilityControls(options = {}) {
   }
 }
 
+function handleVisibilityCheckboxChange(changed) {
+  if (!publicCheckboxEl || !privateCheckboxEl) return;
+  if (changed === 'public' && publicCheckboxEl.checked) {
+    privateCheckboxEl.checked = false;
+  }
+  if (changed === 'private' && privateCheckboxEl.checked) {
+    publicCheckboxEl.checked = false;
+  }
+  syncVisibilityControls();
+}
+
 function getUkNumericParts(epochMs) {
   const formatter = new Intl.DateTimeFormat('en-GB', {
     timeZone: UK_TIME_ZONE,
@@ -1167,11 +1178,11 @@ function setupEvents() {
   }
 
   publicCheckboxEl?.addEventListener('change', () => {
-    syncVisibilityControls();
+    handleVisibilityCheckboxChange('public');
     setError('');
   });
   privateCheckboxEl?.addEventListener('change', () => {
-    syncVisibilityControls();
+    handleVisibilityCheckboxChange('private');
     setError('');
   });
 

@@ -71,7 +71,7 @@ test.describe('public/private/embed urls', () => {
       iframeHost.page.frameLocator('[data-testid="embed-frame"]').getByTestId('countdown-display')
     ).toBeVisible();
 
-    const privatePassword = 'StrongPassword123';
+    const privatePassword = 'a';
     const privateCreator = await openIsolated(mkContext, '/countdown');
     const privateNow = Date.now();
     await createCountdown(privateCreator.page, {
@@ -86,7 +86,7 @@ test.describe('public/private/embed urls', () => {
     const privateViewer = await openIsolated(mkContext, toPathnameAndSearch(privateUrl));
 
     await expect(privateViewer.page.getByTestId('password-input')).toBeVisible();
-    await privateViewer.page.getByTestId('password-input').fill('WrongPassword123');
+    await privateViewer.page.getByTestId('password-input').fill('b');
     await privateViewer.page.getByTestId('password-submit').click();
     await expect(privateViewer.page.getByTestId('password-message')).toContainText(
       /incorrect|access denied/i

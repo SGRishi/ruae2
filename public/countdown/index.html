@@ -9,7 +9,7 @@
       content="Create polished countdowns with scenery backdrops, progress tracking, and ambient audio."
     />
     <meta name="robots" content="noindex,nofollow" data-testid="robots-meta" />
-    <link rel="stylesheet" href="/countdown/countdown.css?v=20260304h" />
+    <link rel="stylesheet" href="/countdown/countdown.css?v=20260304i" />
   </head>
   <body class="countdown-page">
     <div class="countdown-background" data-testid="bg-image" aria-hidden="true"></div>
@@ -102,21 +102,21 @@
 
           <fieldset class="units-fieldset">
             <legend>Units to show</legend>
-            <label class="inline-control" for="unitsDays">
+            <label class="inline-control unit-option" for="unitsDays">
+              <span class="inline-text">Days</span>
               <input id="unitsDays" data-testid="units-days" type="checkbox" checked />
-              Days
             </label>
-            <label class="inline-control" for="unitsHours">
+            <label class="inline-control unit-option" for="unitsHours">
+              <span class="inline-text">Hours</span>
               <input id="unitsHours" data-testid="units-hours" type="checkbox" checked />
-              Hours
             </label>
-            <label class="inline-control" for="unitsMinutes">
+            <label class="inline-control unit-option" for="unitsMinutes">
+              <span class="inline-text">Minutes</span>
               <input id="unitsMinutes" data-testid="units-minutes" type="checkbox" checked />
-              Minutes
             </label>
-            <label class="inline-control" for="unitsSeconds">
+            <label class="inline-control unit-option" for="unitsSeconds">
+              <span class="inline-text">Seconds</span>
               <input id="unitsSeconds" data-testid="units-seconds" type="checkbox" checked />
-              Seconds
             </label>
           </fieldset>
 
@@ -138,9 +138,9 @@
             name="setupPassword"
             data-testid="setup-password-input"
             type="password"
-            minlength="12"
+            minlength="1"
             autocomplete="new-password"
-            placeholder="Minimum 12 chars with upper/lowercase + number"
+            placeholder="Enter any non-empty password"
           />
 
           <button type="submit" data-testid="create-button">Create countdown</button>
@@ -204,6 +204,6 @@
     </main>
 
     <script src="/runtime-config.js?v=20260214"></script>
-    <script src="/countdown/countdown.js?v=20260304h" type="module"></script>
+    <script src="/countdown/countdown.js?v=20260304i" type="module"></script>
   </body>
 </html>

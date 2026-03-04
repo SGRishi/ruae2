@@ -75,4 +75,45 @@ test.describe('units selection', () => {
     );
     expect(secondsOnlyValue).toBeGreaterThan(3600);
   });
+
+  test('visibility checkboxes are mutually exclusive and unit rows are left aligned', async ({
+    page,
+  }) => {
+    await page.goto('/countdown', { waitUntil: 'domcontentloaded' });
+
+    const publicBox = page.getByTestId('public-checkbox');
+    const privateBox = page.getByTestId('private-checkbox');
+
+    await expect(privateBox).toBeChecked();
+    await publicBox.check();
+    await expect(publicBox).toBeChecked();
+    await expect(privateBox).not.toBeChecked();
+
+    await privateBox.check();
+    await expect(privateBox).toBeChecked();
+    await expect(publicBox).not.toBeChecked();
+
+    const fieldset = page.locator('.units-fieldset');
+    const unitRow = page.locator('label[for="unitsSeconds"]');
+    const rowText = unitRow.locator('.inline-text');
+    const rowCheckbox = unitRow.locator('input[type="checkbox"]');
+
+    const [fieldBox, rowBox, textBox, checkboxBox] = await Promise.all([
+      fieldset.boundingBox(),
+      unitRow.boundingBox(),
+      rowText.boundingBox(),
+      rowCheckbox.boundingBox(),
+    ]);
+
+    expect(fieldBox).not.toBeNull();
+    expect(rowBox).not.toBeNull();
+    expect(textBox).not.toBeNull();
+    expect(checkboxBox).not.toBeNull();
+
+    if (fieldBox && rowBox && textBox && checkboxBox) {
+      expect(rowBox.x - fieldBox.x).toBeLessThanOrEqual(36);
+      expect(textBox.x).toBeLessThan(checkboxBox.x);
+      expect(checkboxBox.x - (textBox.x + textBox.width)).toBeLessThanOrEqual(36);
+    }
+  });
 });
