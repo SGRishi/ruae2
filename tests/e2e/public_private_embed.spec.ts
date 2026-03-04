@@ -68,6 +68,17 @@ test.describe('public/private/embed urls', () => {
     await expect(embedViewer.page.getByTestId('music-play')).toBeHidden();
     await expect(embedViewer.page.getByTestId('volume-slider')).toBeHidden();
 
+    const embedHeadersResponse = await page.request.get(toPathnameAndSearch(embedUrl));
+    expect(embedHeadersResponse.ok()).toBe(true);
+    const embedHeaders = embedHeadersResponse.headers();
+    const xFrameOptions = String(embedHeaders['x-frame-options'] || '').toLowerCase();
+    expect(xFrameOptions).not.toContain('sameorigin');
+    expect(xFrameOptions).not.toContain('deny');
+    const csp = String(embedHeaders['content-security-policy'] || '').toLowerCase();
+    if (csp.includes('frame-ancestors')) {
+      expect(csp).toContain('frame-ancestors *');
+    }
+
     const iframeHost = await openIsolated(mkContext, '/countdown');
     await iframeHost.page.setContent(
       `<iframe data-testid="embed-frame" src="${toPathnameAndSearch(

@@ -1,3 +1,2 @@
 /countdown/*
-  X-Frame-Options: SAMEORIGIN
-  Content-Security-Policy: frame-ancestors 'self' https://rishisubjects.co.uk https://www.rishisubjects.co.uk
+  Content-Security-Policy: frame-ancestors *

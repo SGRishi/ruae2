@@ -4,6 +4,17 @@ test('live smoke: countdown page loads in read-only mode', async ({ page }) => {
   const smokePath = process.env.SMOKE_PATH || '/countdown';
 
   await page.goto(smokePath, { waitUntil: 'domcontentloaded' });
+  const embedHeadersResponse = await page.request.get('/countdown/?embed=1');
+  expect(embedHeadersResponse.ok()).toBe(true);
+  const embedHeaders = embedHeadersResponse.headers();
+  const xFrameOptions = String(embedHeaders['x-frame-options'] || '').toLowerCase();
+  expect(xFrameOptions).not.toContain('sameorigin');
+  expect(xFrameOptions).not.toContain('deny');
+  const csp = String(embedHeaders['content-security-policy'] || '').toLowerCase();
+  if (csp.includes('frame-ancestors')) {
+    expect(csp).toContain('frame-ancestors *');
+  }
+
   const hasNewUi = (await page.getByTestId('countdown-display').count()) > 0;
 
   if (hasNewUi) {
