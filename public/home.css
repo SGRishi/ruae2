@@ -50,7 +50,7 @@ body.home {
     linear-gradient(165deg, rgba(2, 9, 28, 0.9), rgba(6, 22, 54, 0.88)),
     radial-gradient(920px 540px at 18% 14%, rgba(56, 189, 248, 0.24), transparent 62%),
     radial-gradient(820px 620px at 88% 86%, rgba(30, 64, 175, 0.3), transparent 66%),
-    url('https://images.unsplash.com/photo-1474511320723-9a56873867b5?auto=format&fit=crop&w=2200&q=80'),
+    url('/media/winter-panorama-bled.jpg'),
     url('/media/hero-study.jpg');
   background-size: cover;
   background-position: center 28%;

@@ -45,7 +45,7 @@ test.describe('homepage session experience', () => {
     const backgroundImage = await page.getByTestId('home-returning-bg').evaluate((node) => {
       return globalThis.getComputedStyle(node).backgroundImage;
     });
-    expect(backgroundImage).toContain('images.unsplash.com');
+    expect(backgroundImage).toContain('winter-panorama-bled.jpg');
 
     const titleSize = await page.getByTestId('home-session-greeting').evaluate((node) => {
       return Number.parseFloat(globalThis.getComputedStyle(node).fontSize);
