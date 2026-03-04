@@ -61,6 +61,8 @@ CREATE TABLE IF NOT EXISTS countdown_timers (
   token TEXT NOT NULL,
   start_at_ms INTEGER,
   deadline_ms INTEGER NOT NULL,
+  title_text TEXT,
+  display_units TEXT,
   is_public INTEGER NOT NULL DEFAULT 0,
   pass_salt TEXT,
   pass_hash TEXT,

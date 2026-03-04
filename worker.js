@@ -22,6 +22,9 @@ const LOCKOUT_START_AT_FAILURE = 5;
 const LOCKOUT_MAX_SECONDS = 60 * 60;
 const ADMIN_REVIEW_LIMIT = 200;
 const COUNTDOWN_MAX_FUTURE_MS = 1000 * 60 * 60 * 24 * 365 * 5;
+const COUNTDOWN_TITLE_MAX_LENGTH = 120;
+const COUNTDOWN_UNITS = ['days', 'hours', 'minutes', 'seconds'];
+const EVENT_RESOLVE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const DEFAULT_ALLOWED_ORIGINS = new Set(['https://rishisubjects.co.uk']);
 const DEV_LOCAL_ORIGINS = new Set([
@@ -30,6 +33,7 @@ const DEV_LOCAL_ORIGINS = new Set([
   'http://localhost:8788',
   'http://127.0.0.1:8788',
 ]);
+const resolveEventDateCache = new Map();
 
 const RUAE_GUIDANCE = `Reading for Understanding, Analysis and Evaluation (30 marks)\n\nAs the title of the paper suggests, there are three core skills being tested in this exam:\n- your ability to read and understand an unfamiliar piece of non-fiction prose\n- your ability to analyse a range of literary devices used by a writer to create a particular effect\n- your ability to evaluate the success of the writer in employing these techniques\n\nYou will have 1 hour and 30 minutes to complete the RUAE exam. The paper is marked out of 30 and is therefore worth 30% of your overall grade.\n\nThe RUAE passage\nAt Higher you will be faced with two passages in the exam. These passages should be linked by the same topic, although the writers might take very different approaches or attitudes to the topic.\n\nThe majority of questions will deal with passage one; the final question deals with both passages. In this final question you will be asked to look at the main areas of agreement and/or disagreement between the two writers.\n\nOften, reading and understanding the passages is the trickiest bit for candidates. Passages at Higher will be full of demanding vocabulary and complicated lines of thought.\n\nThe questions\nIt is perhaps helpful to think about the three question areas in this paper in the following way:\n- what is the writer saying? (Understanding)\n- how is the writer saying it? (Analysis)\n- how well did the writer say it? (Evaluation)\n\nLanguage features\n- sentence structure\n- imagery\n- word choice\n- tone\n- linking sentences\n- turning point in argument`;
 
@@ -1142,6 +1146,12 @@ function normalizeCountdownToken(value) {
 }
 
 function normalizeCountdownDeadlineMs(value) {
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Date.parse(value);
+    if (Number.isFinite(parsed)) {
+      return Math.floor(parsed);
+    }
+  }
   const deadlineMs = Number(value);
   if (!Number.isFinite(deadlineMs)) return null;
   return Math.floor(deadlineMs);
@@ -1153,11 +1163,45 @@ function normalizeCountdownStartAtMs(value) {
   return Math.floor(startAtMs);
 }
 
-function normalizeCountdownDurationMinutes(value) {
-  const minutes = Number.parseInt(String(value || ''), 10);
-  if (!Number.isFinite(minutes)) return null;
-  if (minutes <= 0) return null;
-  return Math.floor(minutes);
+function normalizeCountdownTitle(value) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, COUNTDOWN_TITLE_MAX_LENGTH);
+}
+
+function normalizeCountdownUnits(value) {
+  let units = value;
+
+  if (typeof units === 'string') {
+    const raw = units.trim();
+    if (!raw) return [];
+
+    try {
+      const parsed = JSON.parse(raw);
+      units = parsed;
+    } catch {
+      units = raw.split(',');
+    }
+  }
+
+  if (!Array.isArray(units)) return [];
+
+  const normalized = [];
+  for (const item of units) {
+    const unit = String(item || '').trim().toLowerCase();
+    if (!COUNTDOWN_UNITS.includes(unit)) continue;
+    if (!normalized.includes(unit)) normalized.push(unit);
+  }
+  return normalized;
+}
+
+function countdownUnitsForStorage(units) {
+  const normalized = normalizeCountdownUnits(units);
+  if (!normalized.length) {
+    return JSON.stringify(COUNTDOWN_UNITS);
+  }
+  return JSON.stringify(normalized);
 }
 
 function countdownRowToTimer(row) {
@@ -1173,6 +1217,11 @@ function countdownRowToTimer(row) {
     startAtMs: Number.isFinite(startAtMs) ? startAtMs : createdAtMs,
     endAtMs: deadlineMs,
     deadlineMs,
+    title: normalizeCountdownTitle(row.title_text),
+    units: (() => {
+      const parsed = normalizeCountdownUnits(row.display_units);
+      return parsed.length ? parsed : [...COUNTDOWN_UNITS];
+    })(),
     isPublic: Boolean(Number(row.is_public)),
     passSalt: typeof row.pass_salt === 'string' ? row.pass_salt : '',
     passHash: typeof row.pass_hash === 'string' ? row.pass_hash : '',
@@ -1216,6 +1265,8 @@ function createCountdownD1Store(db) {
             token TEXT NOT NULL,
             start_at_ms INTEGER,
             deadline_ms INTEGER NOT NULL,
+            title_text TEXT,
+            display_units TEXT,
             is_public INTEGER NOT NULL DEFAULT 0,
             pass_salt TEXT,
             pass_hash TEXT,
@@ -1230,6 +1281,8 @@ function createCountdownD1Store(db) {
         await tryMigration('ALTER TABLE countdown_timers ADD COLUMN start_at_ms INTEGER');
         await tryMigration('ALTER TABLE countdown_timers ADD COLUMN pass_salt TEXT');
         await tryMigration('ALTER TABLE countdown_timers ADD COLUMN pass_hash TEXT');
+        await tryMigration('ALTER TABLE countdown_timers ADD COLUMN title_text TEXT');
+        await tryMigration('ALTER TABLE countdown_timers ADD COLUMN display_units TEXT');
       })();
     }
     await readyPromise;
@@ -1242,6 +1295,9 @@ function createCountdownD1Store(db) {
       const token = normalizeCountdownToken(record?.token);
       const startAtMs = normalizeCountdownStartAtMs(record?.startAtMs ?? record?.createdAtMs);
       const deadlineMs = normalizeCountdownDeadlineMs(record?.deadlineMs);
+      const title = normalizeCountdownTitle(record?.title);
+      const parsedUnits = normalizeCountdownUnits(record?.units);
+      const units = parsedUnits.length ? parsedUnits : [...COUNTDOWN_UNITS];
       const isPublic = Boolean(record?.isPublic);
       const passSalt = String(record?.passSalt || '').trim();
       const passHash = String(record?.passHash || '').trim();
@@ -1268,19 +1324,23 @@ function createCountdownD1Store(db) {
            token,
            start_at_ms,
            deadline_ms,
+           title_text,
+           display_units,
            is_public,
            pass_salt,
            pass_hash,
            created_at_ms,
            updated_at_ms
          )
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`
       )
         .bind(
           id,
           token,
           startAtMs,
           deadlineMs,
+          title || null,
+          countdownUnitsForStorage(units),
           isPublic ? 1 : 0,
           isPublic ? null : passSalt,
           isPublic ? null : passHash,
@@ -1297,7 +1357,18 @@ function createCountdownD1Store(db) {
       const id = normalizeCountdownId(timerId);
       if (!id) return null;
       const row = await db.prepare(
-        `SELECT id, token, start_at_ms, deadline_ms, is_public, pass_salt, pass_hash, created_at_ms, updated_at_ms
+        `SELECT
+           id,
+           token,
+           start_at_ms,
+           deadline_ms,
+           title_text,
+           display_units,
+           is_public,
+           pass_salt,
+           pass_hash,
+           created_at_ms,
+           updated_at_ms
          FROM countdown_timers
          WHERE id = ?1
          LIMIT 1`
@@ -1358,6 +1429,9 @@ export function createMemoryCountdownStore(seed = {}) {
     const token = normalizeCountdownToken(item?.token);
     const deadlineMs = normalizeCountdownDeadlineMs(item?.deadlineMs);
     const startAtMs = normalizeCountdownStartAtMs(item?.startAtMs ?? item?.createdAtMs);
+    const title = normalizeCountdownTitle(item?.title);
+    const parsedUnits = normalizeCountdownUnits(item?.units);
+    const units = parsedUnits.length ? parsedUnits : [...COUNTDOWN_UNITS];
     const createdAtMs = Number(item?.createdAtMs);
     const updatedAtMs = Number(item?.updatedAtMs ?? item?.createdAtMs);
     const passSalt = String(item?.passSalt || '').trim();
@@ -1384,6 +1458,8 @@ export function createMemoryCountdownStore(seed = {}) {
       startAtMs,
       endAtMs: deadlineMs,
       deadlineMs,
+      title,
+      units,
       isPublic,
       passSalt: isPublic ? '' : passSalt,
       passHash: isPublic ? '' : passHash,
@@ -1398,6 +1474,9 @@ export function createMemoryCountdownStore(seed = {}) {
       const token = normalizeCountdownToken(record?.token);
       const startAtMs = normalizeCountdownStartAtMs(record?.startAtMs ?? record?.createdAtMs);
       const deadlineMs = normalizeCountdownDeadlineMs(record?.deadlineMs);
+      const title = normalizeCountdownTitle(record?.title);
+      const parsedUnits = normalizeCountdownUnits(record?.units);
+      const units = parsedUnits.length ? parsedUnits : [...COUNTDOWN_UNITS];
       const isPublic = Boolean(record?.isPublic);
       const passSalt = String(record?.passSalt || '').trim();
       const passHash = String(record?.passHash || '').trim();
@@ -1423,6 +1502,8 @@ export function createMemoryCountdownStore(seed = {}) {
         startAtMs,
         endAtMs: deadlineMs,
         deadlineMs,
+        title,
+        units,
         isPublic,
         passSalt: isPublic ? '' : passSalt,
         passHash: isPublic ? '' : passHash,
@@ -2611,6 +2692,263 @@ async function handleMatchWithAi(env, payload) {
   };
 }
 
+function normalizeResolverText(value, maxLength = 280) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength);
+}
+
+function normalizeIsoUtc(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const parsed = Date.parse(raw);
+  if (!Number.isFinite(parsed)) return '';
+  return new Date(parsed).toISOString();
+}
+
+function formatIsoAsUkDisplay(isoUtc, timeZone = 'Europe/London') {
+  const iso = normalizeIsoUtc(isoUtc);
+  if (!iso) return '';
+  try {
+    return new Intl.DateTimeFormat('en-GB', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone,
+    }).format(new Date(iso));
+  } catch {
+    return '';
+  }
+}
+
+function normalizeResolverSuggestions(items, timeZone) {
+  if (!Array.isArray(items)) return [];
+  const suggestions = [];
+  for (const item of items.slice(0, 4)) {
+    const isoUtc = normalizeIsoUtc(item?.isoUtc);
+    if (!isoUtc) continue;
+    const display =
+      normalizeResolverText(item?.display, 180) || formatIsoAsUkDisplay(isoUtc, timeZone) || isoUtc;
+    const notes = normalizeResolverText(item?.notes, 260);
+    suggestions.push({
+      isoUtc,
+      display,
+      ...(notes ? { notes } : {}),
+    });
+  }
+  return suggestions;
+}
+
+function normalizeResolvedEventPayload(payload, timeZone) {
+  const isoUtc = normalizeIsoUtc(payload?.isoUtc);
+  const display = normalizeResolverText(payload?.display, 180) || (isoUtc ? formatIsoAsUkDisplay(isoUtc, timeZone) : '');
+  const notes = normalizeResolverText(payload?.notes, 300);
+  const confidence = ['high', 'medium', 'low'].includes(String(payload?.confidence || '').toLowerCase())
+    ? String(payload.confidence).toLowerCase()
+    : 'medium';
+  const ambiguous = Boolean(payload?.ambiguous);
+  const suggestions = normalizeResolverSuggestions(payload?.suggestions, timeZone);
+
+  return {
+    isoUtc,
+    display,
+    confidence,
+    notes,
+    ambiguous,
+    suggestions,
+  };
+}
+
+function getResolveEventCacheKey(query, timeZone) {
+  return `${String(timeZone || 'Europe/London').toLowerCase()}::${String(query || '').trim().toLowerCase()}`;
+}
+
+function getCachedResolvedEventDate(query, timeZone, nowMs) {
+  const key = getResolveEventCacheKey(query, timeZone);
+  if (!key) return null;
+  const cached = resolveEventDateCache.get(key);
+  if (!cached) return null;
+  if (Number(cached.expiresAtMs) <= Number(nowMs)) {
+    resolveEventDateCache.delete(key);
+    return null;
+  }
+  return cached.result;
+}
+
+function cacheResolvedEventDate(query, timeZone, nowMs, result) {
+  const key = getResolveEventCacheKey(query, timeZone);
+  if (!key || !result) return;
+  resolveEventDateCache.set(key, {
+    expiresAtMs: Number(nowMs) + EVENT_RESOLVE_CACHE_TTL_MS,
+    result,
+  });
+}
+
+async function resolveEventDateWithAi(env, query, nowMs, timeZone) {
+  const apiKey = String(env.OPENAI_API_KEY || '').trim();
+  if (!apiKey) {
+    return {
+      status: 503,
+      body: { ok: false, error: 'Date resolver is not configured on this server.' },
+    };
+  }
+
+  const instructions = [
+    'You resolve natural-language event descriptions into a specific target datetime.',
+    'Assume user locale is UK and timezone is Europe/London unless the query states otherwise.',
+    'Return only valid JSON matching the schema.',
+    'If the request is ambiguous, set ambiguous=true, provide 1-3 concrete suggestions, and avoid guessing.',
+    'When not ambiguous, provide isoUtc in UTC (Z suffix) and a short user-friendly display string.',
+  ].join(' ');
+
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: String(env.OPENAI_MODEL || 'gpt-4o-mini'),
+      instructions,
+      input: JSON.stringify({
+        query,
+        timeZone,
+        nowIsoUtc: new Date(nowMs).toISOString(),
+      }),
+      temperature: 0.1,
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'countdown_event_date',
+          strict: true,
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              isoUtc: { type: ['string', 'null'] },
+              display: { type: 'string' },
+              confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+              notes: { type: ['string', 'null'] },
+              ambiguous: { type: 'boolean' },
+              suggestions: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    isoUtc: { type: 'string' },
+                    display: { type: 'string' },
+                    notes: { type: ['string', 'null'] },
+                  },
+                  required: ['isoUtc', 'display', 'notes'],
+                },
+              },
+            },
+            required: ['isoUtc', 'display', 'confidence', 'notes', 'ambiguous', 'suggestions'],
+          },
+        },
+      },
+    }),
+  });
+
+  let responseJson;
+  try {
+    responseJson = await response.json();
+  } catch {
+    return {
+      status: 502,
+      body: { ok: false, error: 'Date resolver returned an invalid response.' },
+    };
+  }
+
+  if (!response.ok) {
+    const aiMessage = normalizeResolverText(responseJson?.error?.message || 'Date resolver request failed.', 220);
+    return {
+      status: 502,
+      body: { ok: false, error: aiMessage || 'Date resolver request failed.' },
+    };
+  }
+
+  const outputText = extractOutputText(responseJson);
+  if (!outputText) {
+    return {
+      status: 502,
+      body: { ok: false, error: 'Date resolver returned empty output.' },
+    };
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(outputText);
+  } catch {
+    return {
+      status: 502,
+      body: { ok: false, error: 'Date resolver returned malformed JSON.' },
+    };
+  }
+
+  const normalized = normalizeResolvedEventPayload(parsed, timeZone);
+
+  if (!normalized.isoUtc && !normalized.ambiguous && !normalized.suggestions.length) {
+    return {
+      status: 502,
+      body: { ok: false, error: 'Date resolver could not determine a usable target date.' },
+    };
+  }
+
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      isoUtc: normalized.isoUtc || null,
+      display: normalized.display || null,
+      confidence: normalized.confidence,
+      notes: normalized.notes || null,
+      ambiguous: normalized.ambiguous || !normalized.isoUtc,
+      suggestions: normalized.suggestions,
+      query,
+    },
+  };
+}
+
+async function handleResolveEventDate(request, env, nowMs) {
+  if (request.method !== 'POST') {
+    return methodNotAllowed(request, env, ['POST']);
+  }
+
+  const body = await readJsonBody(request, 8_000);
+  if (!body.ok) {
+    return jsonResponse(request, env, { ok: false, error: body.error }, body.status);
+  }
+
+  const query = normalizeResolverText(body.data.query, 220);
+  if (query.length < 3) {
+    return jsonResponse(
+      request,
+      env,
+      { ok: false, error: 'Describe the event with at least 3 characters.' },
+      400
+    );
+  }
+
+  const timeZone = normalizeResolverText(body.data.timeZone || 'Europe/London', 80) || 'Europe/London';
+  const cached = getCachedResolvedEventDate(query, timeZone, nowMs);
+  if (cached) {
+    return jsonResponse(request, env, cached, 200);
+  }
+
+  const resolved = await resolveEventDateWithAi(env, query, nowMs, timeZone);
+  if (resolved.status === 200 && resolved.body?.ok) {
+    cacheResolvedEventDate(query, timeZone, nowMs, resolved.body);
+  }
+  return jsonResponse(request, env, resolved.body, resolved.status);
+}
+
 function extractCsrfToken(request, payload) {
   const token = payload?.csrfToken ?? payload?.csrf_token ?? request.headers.get('X-CSRF-Token');
   return String(token || '').trim();
@@ -2660,11 +2998,14 @@ function countdownClientTimer(timer, canEdit = false) {
   if (!timer) return null;
   const startAtMs = Number(timer.startAtMs ?? timer.createdAtMs);
   const endAtMs = Number(timer.endAtMs ?? timer.deadlineMs);
+  const units = normalizeCountdownUnits(timer.units);
   return {
     id: timer.id,
     startAtMs,
     endAtMs,
     deadlineMs: endAtMs,
+    title: normalizeCountdownTitle(timer.title),
+    units: units.length ? units : [...COUNTDOWN_UNITS],
     isPublic: Boolean(timer.isPublic),
     createdAtMs: Number(timer.createdAtMs),
     updatedAtMs: Number(timer.updatedAtMs),
@@ -2737,10 +3078,9 @@ async function handleCountdownTimer(request, env, countdownStore, url, nowMs, no
       return jsonResponse(request, env, { ok: false, error: body.error }, body.status);
     }
 
-    const durationMinutes = normalizeCountdownDurationMinutes(body.data.durationMinutes);
-    const deadlineMs = durationMinutes
-      ? nowMs + durationMinutes * 60_000
-      : normalizeCountdownDeadlineMs(body.data.deadlineMs);
+    const deadlineMs = normalizeCountdownDeadlineMs(
+      body.data.deadlineMs ?? body.data.endAtMs ?? body.data.isoUtc
+    );
     if (!Number.isFinite(deadlineMs)) {
       return jsonResponse(request, env, { ok: false, error: 'Deadline must be a valid timestamp.' }, 400);
     }
@@ -2751,7 +3091,19 @@ async function handleCountdownTimer(request, env, countdownStore, url, nowMs, no
       return jsonResponse(request, env, { ok: false, error: 'Deadline is too far in the future.' }, 400);
     }
 
+    if (typeof body.data.isPublic !== 'boolean') {
+      return jsonResponse(request, env, { ok: false, error: 'isPublic must be a boolean.' }, 400);
+    }
+
+    const requestedUnits = Object.prototype.hasOwnProperty.call(body.data, 'units')
+      ? normalizeCountdownUnits(body.data.units)
+      : [...COUNTDOWN_UNITS];
+    if (!requestedUnits.length) {
+      return jsonResponse(request, env, { ok: false, error: 'Select at least one countdown unit.' }, 400);
+    }
+
     const isPublic = Boolean(body.data.isPublic);
+    const title = normalizeCountdownTitle(body.data.title);
     const privatePassword = String(body.data.password || '').trim();
     let passwordRecord = null;
 
@@ -2776,6 +3128,8 @@ async function handleCountdownTimer(request, env, countdownStore, url, nowMs, no
       token: generateCountdownToken(),
       startAtMs: nowMs,
       deadlineMs,
+      title,
+      units: requestedUnits,
       isPublic,
       passSalt: passwordRecord?.salt || '',
       passHash: passwordRecord?.hash || '',
@@ -4079,6 +4433,10 @@ export function createApiHandler(options = {}) {
             ok: true,
             nowMs: now(),
           });
+        }
+
+        if (path === '/api/resolve-event-date') {
+          return handleResolveEventDate(request, env, now());
         }
 
         if (!env.SESSION_SECRET) {

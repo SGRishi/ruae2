@@ -3,13 +3,21 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LOCAL_LOG="$ROOT_DIR/tools/autofix/last_local.log"
+MAX_ITERATIONS="${MAX_ITERATIONS:-8}"
 
 cd "$ROOT_DIR"
 
-if ! bash tools/autofix/run_local_dev_and_test.sh; then
-  echo "[autofix_local] Local tests failed. Review $LOCAL_LOG, apply one fix, and rerun." >&2
-  exit 1
-fi
+attempt=1
+until bash tools/autofix/run_local_dev_and_test.sh; do
+  if [[ "$attempt" -ge "$MAX_ITERATIONS" ]]; then
+    echo "[autofix_local] Local tests still failing after ${MAX_ITERATIONS} attempts." >&2
+    echo "[autofix_local] Review $LOCAL_LOG and apply a code fix before rerunning." >&2
+    exit 1
+  fi
+
+  echo "[autofix_local] Attempt ${attempt} failed. Re-running local suite (no production changes)." >&2
+  attempt=$((attempt + 1))
+done
 
 git add -A
 

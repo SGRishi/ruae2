@@ -50,6 +50,23 @@ export function qaBaseUrl(port = 8789) {
 
 export async function createQaEnv(origin) {
   const nowSeconds = Math.floor(Date.now() / 1000);
+  const allowedOrigins = new Set(['https://rishisubjects.co.uk']);
+  if (origin) {
+    allowedOrigins.add(origin);
+    try {
+      const parsed = new URL(origin);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        if (parsed.hostname === '127.0.0.1') {
+          allowedOrigins.add(`${parsed.protocol}//localhost${parsed.port ? `:${parsed.port}` : ''}`);
+        }
+        if (parsed.hostname === 'localhost') {
+          allowedOrigins.add(`${parsed.protocol}//127.0.0.1${parsed.port ? `:${parsed.port}` : ''}`);
+        }
+      }
+    } catch {
+      // Ignore malformed origin in QA fixtures.
+    }
+  }
 
   const authStore = createMemoryStore({
     users: [
@@ -329,7 +346,7 @@ export async function createQaEnv(origin) {
 
   const env = {
     ...QA_SECRETS,
-    ALLOWED_ORIGINS: origin ? `${origin},https://rishisubjects.co.uk` : 'https://rishisubjects.co.uk',
+    ALLOWED_ORIGINS: Array.from(allowedOrigins).join(','),
     REQUIRE_MANUAL_APPROVAL: 'false',
     ALLOW_TEST_AUTH: 'true',
     OPENAI_API_KEY: 'qa-openai-test-key',

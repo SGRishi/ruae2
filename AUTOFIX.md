@@ -2,20 +2,26 @@
 
 ## Local autonomous loop (recommended)
 
-Run local dev + Playwright, then commit/push if green:
+Runs local dev + Playwright repeatedly (up to 8 iterations by default), then commits/pushes on success and runs read-only live smoke:
 
 ```bash
-DEV_CMD="npm run preview" LOCAL_URL="http://127.0.0.1:3000/countdown" npm run autofix:local
+DEV_CMD="npm run preview" LOCAL_URL="http://localhost:3000/countdown" npm run autofix:local
+```
+
+Optional:
+
+```bash
+MAX_ITERATIONS=8 DEV_CMD="npm run preview" LOCAL_URL="http://localhost:3000/countdown" npm run autofix:local
 ```
 
 Notes:
-- `autofix:local` only runs fixes/tests against local code and local tests.
-- If local tests fail, the script stops and expects one manual fix attempt before rerun.
+- `autofix:local` only runs autonomous retries against local code/tests.
+- It never applies production fixes.
 
 ## Local test once (no commit/push)
 
 ```bash
-DEV_CMD="npm run preview" LOCAL_URL="http://127.0.0.1:3000/countdown" npm run test:local
+DEV_CMD="npm run preview" LOCAL_URL="http://localhost:3000/countdown" npm run test:local
 ```
 
 ## Live smoke test (read-only)

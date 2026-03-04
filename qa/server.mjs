@@ -57,7 +57,16 @@ if (typeof realFetch === 'function') {
 
       const output = schemaName === 'mark_answer'
         ? { score: 1, max: 2, reasoning: 'QA stub feedback: clear point and relevant paraphrase.' }
-        : { quote: 'almond trees', lineNumber: 1 };
+        : schemaName === 'countdown_event_date'
+          ? {
+              isoUtc: '2026-05-05T08:00:00.000Z',
+              display: 'Tuesday 5 May 2026, 09:00',
+              confidence: 'medium',
+              notes: 'QA resolver stub response.',
+              ambiguous: false,
+              suggestions: [],
+            }
+          : { quote: 'almond trees', lineNumber: 1 };
 
       return new Response(
         JSON.stringify({ output_text: JSON.stringify(output) }),

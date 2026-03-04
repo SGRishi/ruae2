@@ -89,6 +89,8 @@ test('countdown API: public timers are readable without auth and expose start/en
     method: 'POST',
     json: {
       deadlineMs: fixedNow + 10 * 60_000,
+      title: 'Public QA timer',
+      units: ['days', 'hours', 'minutes', 'seconds'],
       isPublic: true,
     },
   });
@@ -99,6 +101,8 @@ test('countdown API: public timers are readable without auth and expose start/en
   assert.equal(created.data.timer.startAtMs, fixedNow);
   assert.equal(created.data.timer.endAtMs, fixedNow + 10 * 60_000);
   assert.equal(created.data.timer.deadlineMs, created.data.timer.endAtMs);
+  assert.equal(created.data.timer.title, 'Public QA timer');
+  assert.deepEqual(created.data.timer.units, ['days', 'hours', 'minutes', 'seconds']);
 
   const timerId = created.data.timer.id;
 
@@ -120,23 +124,32 @@ test('countdown API: public timers are readable without auth and expose start/en
   assert.equal(ownerRead.data.timer.canEdit, true);
 });
 
-test('countdown API: durationMinutes creates server-timed deadlines', async () => {
+test('countdown API: absolute deadline is required', async () => {
   const fixedNow = Date.UTC(2026, 0, 1, 12, 0, 0);
   const handler = createApiHandler({ now: () => fixedNow });
   const env = buildCountdownEnv();
 
-  const created = await apiCall(handler, env, '/api/countdown/timer', {
+  const rejectedDuration = await apiCall(handler, env, '/api/countdown/timer', {
     method: 'POST',
     json: {
       durationMinutes: 10,
       isPublic: true,
     },
   });
+  assert.equal(rejectedDuration.response.status, 400);
+  assert.match(String(rejectedDuration.data.error || ''), /deadline/i);
 
-  assert.equal(created.response.status, 200);
-  assert.equal(created.data.serverNowMs, fixedNow);
-  assert.equal(created.data.timer.startAtMs, fixedNow);
-  assert.equal(created.data.timer.endAtMs, fixedNow + 10 * 60_000);
+  const acceptedDeadline = await apiCall(handler, env, '/api/countdown/timer', {
+    method: 'POST',
+    json: {
+      deadlineMs: fixedNow + 10 * 60_000,
+      isPublic: true,
+    },
+  });
+  assert.equal(acceptedDeadline.response.status, 200);
+  assert.equal(acceptedDeadline.data.serverNowMs, fixedNow);
+  assert.equal(acceptedDeadline.data.timer.startAtMs, fixedNow);
+  assert.equal(acceptedDeadline.data.timer.endAtMs, fixedNow + 10 * 60_000);
 });
 
 test('countdown API: private timers require password and can be unlocked via access endpoint', async () => {

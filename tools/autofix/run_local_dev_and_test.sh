@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LOG_FILE="$ROOT_DIR/tools/autofix/last_local.log"
 DEV_LOG_FILE="$ROOT_DIR/tools/autofix/dev_server.log"
 
-LOCAL_URL="${LOCAL_URL:-http://127.0.0.1:3000/countdown}"
+LOCAL_URL="${LOCAL_URL:-http://localhost:3000/countdown}"
 
 origin_from_url() {
   local url="$1"
