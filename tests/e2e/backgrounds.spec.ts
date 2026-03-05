@@ -50,6 +50,10 @@ test.describe('background rotation', () => {
       .poll(() => page.evaluate(() => String(document.body?.dataset?.colorTheme || '')))
       .toEqual('light');
 
+    const shellBackgroundBeforeAccent = String(
+      await page.locator('.countdown-shell').evaluate((node) => getComputedStyle(node).backgroundColor)
+    );
+
     await page.getByTestId('settings-menu-toggle').click();
     await page.getByTestId('accent-blue').click();
     await expect
@@ -62,6 +66,11 @@ test.describe('background rotation', () => {
         page.evaluate(() => String(getComputedStyle(document.body).getPropertyValue('--accent') || '').trim())
       )
       .toEqual('#4fc3ff');
+    await expect
+      .poll(() =>
+        page.locator('.countdown-shell').evaluate((node) => String(getComputedStyle(node).backgroundColor))
+      )
+      .not.toEqual(shellBackgroundBeforeAccent);
 
     const initialUrl = String(
       await page.getByTestId('bg-image').evaluate((node) => (node as HTMLElement).dataset.backgroundUrl || '')
@@ -114,5 +123,11 @@ test.describe('background rotation', () => {
         page.getByTestId('bg-image').evaluate((node) => (node as HTMLElement).dataset.backgroundUrl || '')
       )
       .toEqual(firstUrl);
+
+    await page.getByTestId('settings-menu-toggle').click();
+    await page.getByTestId('slide-jump-input').fill('3');
+    await page.getByTestId('slide-jump-apply').click();
+    await expect(page.getByTestId('slideshow-position')).toContainText('Slide 3 of 3');
+    await expect(page.getByTestId('bg-next')).toBeDisabled();
   });
 });
