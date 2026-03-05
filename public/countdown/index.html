@@ -9,7 +9,7 @@
       content="Create polished countdowns with scenery backdrops, progress tracking, and ambient audio."
     />
     <meta name="robots" content="noindex,nofollow" data-testid="robots-meta" />
-    <link rel="stylesheet" href="/countdown/countdown.css?v=20260305a" />
+    <link rel="stylesheet" href="/countdown/countdown.css?v=20260305b" />
   </head>
   <body class="countdown-page">
     <div class="countdown-background" data-testid="bg-image" aria-hidden="true"></div>
@@ -19,6 +19,27 @@
       <section class="countdown-shell">
         <h1 class="countdown-title" data-testid="countdown-title">Your countdown title appears here</h1>
         <p class="countdown-status" data-testid="countdown-status">Set a future UK date and time to begin.</p>
+        <section class="pack-toolbar" data-testid="pack-toolbar" aria-label="Background themes">
+          <div class="pack-toggle-row" role="group" aria-label="Light and dark toggle">
+            <button type="button" class="pack-shortcut" data-pack-shortcut="light" data-testid="pack-light-toggle">
+              ☀ Light
+            </button>
+            <button type="button" class="pack-shortcut" data-pack-shortcut="dark" data-testid="pack-dark-toggle">
+              🌙 Dark
+            </button>
+          </div>
+          <div class="pack-toggle-row pack-toggle-row--more" role="group" aria-label="More theme packs">
+            <button type="button" class="pack-shortcut" data-pack-shortcut="legacy" data-testid="pack-classic-toggle">
+              Classic
+            </button>
+            <button type="button" class="pack-shortcut" data-pack-shortcut="nature" data-testid="pack-nature-toggle">
+              Nature
+            </button>
+            <button type="button" class="pack-shortcut" data-pack-shortcut="mixed" data-testid="pack-mixed-toggle">
+              Mixed
+            </button>
+          </div>
+        </section>
 
         <section class="countdown-display" data-testid="countdown-display" role="timer" aria-live="polite">
           <article class="countdown-unit" data-unit="days">
@@ -224,7 +245,7 @@
     </main>
 
     <script src="/runtime-config.js?v=20260214"></script>
-    <script src="/countdown/background-packs.js?v=20260305a"></script>
-    <script src="/countdown/countdown.js?v=20260305a" type="module"></script>
+    <script src="/countdown/background-packs.js?v=20260305b"></script>
+    <script src="/countdown/countdown.js?v=20260305b" type="module"></script>
   </body>
 </html>

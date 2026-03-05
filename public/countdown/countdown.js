@@ -23,6 +23,7 @@ const backgroundEl = document.querySelector('[data-testid="bg-image"]');
 const bgNextEl = document.querySelector('[data-testid="bg-next"]');
 const bgPackSelectEl = document.querySelector('[data-testid="bg-pack-select"]');
 const bgPackNoteEl = document.querySelector('[data-testid="bg-pack-note"]');
+const bgPackShortcutEls = Array.from(document.querySelectorAll('[data-pack-shortcut]'));
 const formEl = document.querySelector('[data-testid="timer-form"]');
 const statusEl = document.querySelector('[data-testid="countdown-status"]');
 const errorEl = document.querySelector('[data-testid="timer-error"]');
@@ -742,6 +743,15 @@ function renderBackgroundPackNote() {
   bgPackNoteEl.textContent = `${label}: ${packSize}/${TOTAL_BACKGROUND_COUNT} images. ${detail}`;
 }
 
+function syncPackShortcutButtons() {
+  for (const button of bgPackShortcutEls) {
+    const packKey = String(button?.dataset?.packShortcut || '').trim();
+    const isActive = packKey === activeBackgroundPack;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-pressed', String(isActive));
+  }
+}
+
 function setBackgroundPack(packKey) {
   const next = availableBackgroundPool(packKey);
   activeBackgroundPack = next.key;
@@ -753,6 +763,7 @@ function setBackgroundPack(packKey) {
   }
 
   renderBackgroundPackNote();
+  syncPackShortcutButtons();
   setBackground(0);
 }
 
@@ -1261,6 +1272,13 @@ function setupEvents() {
   bgPackSelectEl?.addEventListener('change', () => {
     setBackgroundPack(bgPackSelectEl.value);
   });
+  for (const button of bgPackShortcutEls) {
+    button.addEventListener('click', () => {
+      const packKey = String(button?.dataset?.packShortcut || '').trim();
+      if (!packKey) return;
+      setBackgroundPack(packKey);
+    });
+  }
 
   titleInputEl?.addEventListener('input', () => {
     if (activeTimer) return;

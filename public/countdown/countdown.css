@@ -85,6 +85,38 @@ body.countdown-page {
   min-height: 1.4em;
 }
 
+.pack-toolbar {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.pack-toggle-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.pack-toggle-row--more {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pack-shortcut {
+  width: 100%;
+  border: 1px solid rgba(146, 206, 245, 0.34);
+  border-radius: 0.56rem;
+  background: rgba(7, 22, 37, 0.78);
+  color: #e6f2ff;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.52rem 0.58rem;
+  text-align: center;
+}
+
+.pack-shortcut.is-active {
+  border-color: #9ed0ff;
+  background: linear-gradient(135deg, rgba(126, 215, 180, 0.32), rgba(134, 200, 255, 0.38));
+}
+
 .countdown-display {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -458,6 +490,10 @@ body.countdown-readonly .countdown-shell {
 
   .countdown-display {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pack-toggle-row--more {
+    grid-template-columns: 1fr;
   }
 
   .date-time-grid {

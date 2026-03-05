@@ -30,12 +30,31 @@ test.describe('background rotation', () => {
     await expect(page.getByTestId('bg-image')).toBeVisible();
     await expect(page.getByTestId('overlay')).toBeVisible();
     await expect(page.getByTestId('bg-next')).toBeVisible();
+    await expect(page.getByTestId('pack-light-toggle')).toBeVisible();
+    await expect(page.getByTestId('pack-dark-toggle')).toBeVisible();
+
+    const initialUrl = String(
+      await page.getByTestId('bg-image').evaluate((node) => (node as HTMLElement).dataset.backgroundUrl || '')
+    );
+    expect(EXPECTED_IDS.some((id) => initialUrl.includes(id))).toBe(true);
+
+    await page.getByTestId('pack-dark-toggle').click();
+    await expect
+      .poll(() =>
+        page.evaluate(() => String((window as any).__COUNTDOWN_TEST_API__?.backgroundPack?.() || ''))
+      )
+      .toEqual('dark');
+
+    await page.getByTestId('pack-light-toggle').click();
+    await expect
+      .poll(() =>
+        page.evaluate(() => String((window as any).__COUNTDOWN_TEST_API__?.backgroundPack?.() || ''))
+      )
+      .toEqual('light');
 
     const firstUrl = String(
       await page.getByTestId('bg-image').evaluate((node) => (node as HTMLElement).dataset.backgroundUrl || '')
     );
-
-    expect(EXPECTED_IDS.some((id) => firstUrl.includes(id))).toBe(true);
 
     await page.getByTestId('bg-next').click();
 
