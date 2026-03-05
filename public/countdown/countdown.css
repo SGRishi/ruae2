@@ -85,9 +85,45 @@ body.countdown-page {
   min-height: 1.4em;
 }
 
-.pack-toolbar {
+.pack-menu-wrap {
+  position: relative;
+  justify-self: end;
+  width: min(20rem, 100%);
+}
+
+.pack-menu-toggle {
+  width: auto;
+  justify-self: end;
+  border: 1px solid rgba(146, 206, 245, 0.34);
+  border-radius: 0.56rem;
+  background: rgba(7, 22, 37, 0.82);
+  color: #e6f2ff;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.48rem 0.72rem;
+}
+
+.pack-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  width: min(20rem, calc(100vw - 2.6rem));
   display: grid;
   gap: 0.45rem;
+  padding: 0.62rem;
+  border: 1px solid rgba(146, 206, 245, 0.34);
+  border-radius: 0.62rem;
+  background: rgba(5, 17, 29, 0.94);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+  z-index: 3;
+}
+
+.pack-menu-note {
+  margin: 0;
+  min-height: 1.2em;
+  color: #d3e8fb;
+  font-size: 0.8rem;
+  line-height: 1.3;
 }
 
 .pack-toggle-row {
@@ -494,6 +530,21 @@ body.countdown-readonly .countdown-shell {
 
   .pack-toggle-row--more {
     grid-template-columns: 1fr;
+  }
+
+  .pack-menu-wrap {
+    width: 100%;
+  }
+
+  .pack-menu-toggle {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .pack-menu-panel {
+    width: 100%;
+    left: 0;
+    right: auto;
   }
 
   .date-time-grid {

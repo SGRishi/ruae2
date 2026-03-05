@@ -23,6 +23,10 @@ const backgroundEl = document.querySelector('[data-testid="bg-image"]');
 const bgNextEl = document.querySelector('[data-testid="bg-next"]');
 const bgPackSelectEl = document.querySelector('[data-testid="bg-pack-select"]');
 const bgPackNoteEl = document.querySelector('[data-testid="bg-pack-note"]');
+const bgPackNoteDisplayEl = document.querySelector('[data-testid="bg-pack-note-display"]');
+const bgPackMenuToggleEl = document.querySelector('[data-testid="pack-menu-toggle"]');
+const bgPackMenuPanelEl = document.querySelector('[data-testid="pack-menu-panel"]');
+const bgPackMenuWrapEl = document.querySelector('[data-testid="pack-menu-wrap"]');
 const bgPackShortcutEls = Array.from(document.querySelectorAll('[data-pack-shortcut]'));
 const formEl = document.querySelector('[data-testid="timer-form"]');
 const statusEl = document.querySelector('[data-testid="countdown-status"]');
@@ -735,12 +739,20 @@ function setBackground(index) {
 }
 
 function renderBackgroundPackNote() {
-  if (!bgPackNoteEl) return;
   const option = backgroundPackOption(activeBackgroundPack);
   const packSize = activeBackgroundImages.length;
   const label = option?.label || activeBackgroundPack || 'Backgrounds';
   const detail = option?.description || 'Background pack loaded.';
-  bgPackNoteEl.textContent = `${label}: ${packSize}/${TOTAL_BACKGROUND_COUNT} images. ${detail}`;
+  const text = `${label}: ${packSize}/${TOTAL_BACKGROUND_COUNT} images. ${detail}`;
+  if (bgPackNoteEl) bgPackNoteEl.textContent = text;
+  if (bgPackNoteDisplayEl) bgPackNoteDisplayEl.textContent = text;
+}
+
+function setPackMenuOpen(open) {
+  if (!bgPackMenuToggleEl || !bgPackMenuPanelEl) return;
+  const nextOpen = Boolean(open);
+  bgPackMenuPanelEl.hidden = !nextOpen;
+  bgPackMenuToggleEl.setAttribute('aria-expanded', String(nextOpen));
 }
 
 function syncPackShortcutButtons() {
@@ -1272,11 +1284,28 @@ function setupEvents() {
   bgPackSelectEl?.addEventListener('change', () => {
     setBackgroundPack(bgPackSelectEl.value);
   });
+  bgPackMenuToggleEl?.addEventListener('click', () => {
+    const open = bgPackMenuToggleEl.getAttribute('aria-expanded') === 'true';
+    setPackMenuOpen(!open);
+  });
+  document.addEventListener('click', (event) => {
+    if (!bgPackMenuWrapEl || !bgPackMenuToggleEl || !bgPackMenuPanelEl) return;
+    if (bgPackMenuPanelEl.hidden) return;
+    const target = event.target;
+    if (!(target instanceof Node)) return;
+    if (bgPackMenuWrapEl.contains(target)) return;
+    setPackMenuOpen(false);
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    setPackMenuOpen(false);
+  });
   for (const button of bgPackShortcutEls) {
     button.addEventListener('click', () => {
       const packKey = String(button?.dataset?.packShortcut || '').trim();
       if (!packKey) return;
       setBackgroundPack(packKey);
+      setPackMenuOpen(false);
     });
   }
 

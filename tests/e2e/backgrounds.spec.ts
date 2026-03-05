@@ -30,6 +30,8 @@ test.describe('background rotation', () => {
     await expect(page.getByTestId('bg-image')).toBeVisible();
     await expect(page.getByTestId('overlay')).toBeVisible();
     await expect(page.getByTestId('bg-next')).toBeVisible();
+    await expect(page.getByTestId('pack-menu-toggle')).toBeVisible();
+    await page.getByTestId('pack-menu-toggle').click();
     await expect(page.getByTestId('pack-light-toggle')).toBeVisible();
     await expect(page.getByTestId('pack-dark-toggle')).toBeVisible();
 
@@ -45,6 +47,7 @@ test.describe('background rotation', () => {
       )
       .toEqual('dark');
 
+    await page.getByTestId('pack-menu-toggle').click();
     await page.getByTestId('pack-light-toggle').click();
     await expect
       .poll(() =>
