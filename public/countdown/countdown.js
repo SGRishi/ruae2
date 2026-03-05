@@ -16,6 +16,7 @@ const OWNER_TOKEN_KEY = 'countdownOwnerTokens:v3';
 const BACKGROUND_PACK_STORAGE_KEY = 'countdownBackgroundPack:v1';
 const BACKGROUND_SLIDESHOW_LIMIT_STORAGE_KEY = 'countdownBackgroundSetSize:v1';
 const COLOR_THEME_STORAGE_KEY = 'countdownColorTheme:v1';
+const ACCENT_PALETTE_STORAGE_KEY = 'countdownAccentPalette:v1';
 const CLASSIC_FM_STREAM = 'https://ice-the.musicradio.com/ClassicFMMP3';
 const UK_TIME_ZONE = 'Europe/London';
 const UNIT_ORDER = ['days', 'hours', 'minutes', 'seconds'];
@@ -24,7 +25,20 @@ const COLOR_THEME_OPTIONS = [
   { key: 'dark', label: 'Dark' },
   { key: 'nature', label: 'Nature' },
 ];
+const ACCENT_PALETTE_OPTIONS = [
+  { key: 'theme', label: 'Auto', accent: '', accent2: '' },
+  { key: 'blue', label: 'Blue', accent: '#4fc3ff', accent2: '#2d7eff' },
+  { key: 'cyan', label: 'Cyan', accent: '#54e8ff', accent2: '#3ca0f8' },
+  { key: 'teal', label: 'Teal', accent: '#7ed7b4', accent2: '#4caedb' },
+  { key: 'green', label: 'Green', accent: '#8fe072', accent2: '#4ebd7c' },
+  { key: 'amber', label: 'Amber', accent: '#ffc257', accent2: '#ff9448' },
+  { key: 'orange', label: 'Orange', accent: '#ff9f5b', accent2: '#ff6e47' },
+  { key: 'red', label: 'Red', accent: '#ff7b7b', accent2: '#ff4f6f' },
+  { key: 'pink', label: 'Pink', accent: '#ff79be', accent2: '#ff5ea0' },
+  { key: 'purple', label: 'Purple', accent: '#b48dff', accent2: '#7d67ff' },
+];
 const DEFAULT_COLOR_THEME = 'dark';
+const DEFAULT_ACCENT_PALETTE = 'theme';
 const TEST_CONFIG = typeof window !== 'undefined' ? window.__COUNTDOWN_TEST__ || null : null;
 const IS_TEST_MODE = Boolean(TEST_CONFIG);
 
@@ -43,6 +57,7 @@ const settingsMenuPanelEl = document.querySelector('[data-testid="settings-menu-
 const settingsMenuWrapEl = document.querySelector('[data-testid="settings-menu-wrap"]');
 const bgPackShortcutEls = Array.from(document.querySelectorAll('[data-pack-shortcut]'));
 const themeShortcutEls = Array.from(document.querySelectorAll('[data-theme-shortcut]'));
+const accentShortcutEls = Array.from(document.querySelectorAll('[data-accent-shortcut]'));
 const formEl = document.querySelector('[data-testid="timer-form"]');
 const statusEl = document.querySelector('[data-testid="countdown-status"]');
 const errorEl = document.querySelector('[data-testid="timer-error"]');
@@ -108,6 +123,7 @@ let backgroundPackImages = Array.isArray(BACKGROUND_PACKS[DEFAULT_BACKGROUND_PAC
 let activeBackgroundImages = backgroundPackImages.slice();
 let backgroundSetSize = 0;
 let activeColorTheme = DEFAULT_COLOR_THEME;
+let activeAccentPalette = DEFAULT_ACCENT_PALETTE;
 let currentBackgroundIndex = 0;
 let serverTimeOffsetMs = 0;
 let passwordGateVisible = false;
@@ -280,6 +296,21 @@ function rememberColorTheme(theme) {
   const normalized = normalizeColorTheme(theme);
   if (!normalized) return;
   writeStorageText(COLOR_THEME_STORAGE_KEY, normalized);
+}
+
+function normalizeAccentPalette(value) {
+  const requested = String(value || '').trim().toLowerCase();
+  return ACCENT_PALETTE_OPTIONS.some((palette) => palette.key === requested) ? requested : '';
+}
+
+function getStoredAccentPalette() {
+  return normalizeAccentPalette(readStorageText(ACCENT_PALETTE_STORAGE_KEY));
+}
+
+function rememberAccentPalette(paletteKey) {
+  const normalized = normalizeAccentPalette(paletteKey);
+  if (!normalized) return;
+  writeStorageText(ACCENT_PALETTE_STORAGE_KEY, normalized);
 }
 
 function getStoredBackgroundPack() {
@@ -783,6 +814,42 @@ function syncThemeShortcutButtons() {
     const isActive = themeKey === activeColorTheme;
     button.classList.toggle('is-active', isActive);
     button.setAttribute('aria-pressed', String(isActive));
+  }
+}
+
+function accentPaletteOption(paletteKey) {
+  return ACCENT_PALETTE_OPTIONS.find((option) => option.key === paletteKey) || null;
+}
+
+function syncAccentShortcutButtons() {
+  for (const button of accentShortcutEls) {
+    const paletteKey = String(button?.dataset?.accentShortcut || '').trim();
+    const isActive = paletteKey === activeAccentPalette;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-pressed', String(isActive));
+  }
+}
+
+function setAccentPalette(paletteKey, options = {}) {
+  const shouldPersist = options.persist !== false;
+  const requested = normalizeAccentPalette(paletteKey) || DEFAULT_ACCENT_PALETTE;
+  const option = accentPaletteOption(requested) || accentPaletteOption(DEFAULT_ACCENT_PALETTE);
+  if (!option) return;
+
+  activeAccentPalette = option.key;
+  document.body.dataset.accentPalette = option.key;
+
+  if (option.key === DEFAULT_ACCENT_PALETTE || !option.accent || !option.accent2) {
+    document.body.style.removeProperty('--accent');
+    document.body.style.removeProperty('--accent-2');
+  } else {
+    document.body.style.setProperty('--accent', option.accent);
+    document.body.style.setProperty('--accent-2', option.accent2);
+  }
+
+  syncAccentShortcutButtons();
+  if (shouldPersist) {
+    rememberAccentPalette(option.key);
   }
 }
 
@@ -1530,6 +1597,14 @@ function setupEvents() {
       setSettingsMenuOpen(false);
     });
   }
+  for (const button of accentShortcutEls) {
+    button.addEventListener('click', () => {
+      const paletteKey = String(button?.dataset?.accentShortcut || '').trim();
+      if (!paletteKey) return;
+      setAccentPalette(paletteKey);
+      setSettingsMenuOpen(false);
+    });
+  }
 
   titleInputEl?.addEventListener('input', () => {
     if (activeTimer) return;
@@ -1628,6 +1703,9 @@ function setupTestApi() {
     colorTheme() {
       return activeColorTheme;
     },
+    accentPalette() {
+      return activeAccentPalette;
+    },
     countdownPath(urlValue) {
       return toPathAndSearch(urlValue);
     },
@@ -1650,6 +1728,8 @@ async function init() {
 
   const storedTheme = getStoredColorTheme() || DEFAULT_COLOR_THEME;
   setColorTheme(storedTheme, { persist: false });
+  const storedAccent = getStoredAccentPalette() || DEFAULT_ACCENT_PALETTE;
+  setAccentPalette(storedAccent, { persist: false });
   setSettingsMenuOpen(false);
 
   hydrateBackgroundPackSelect();

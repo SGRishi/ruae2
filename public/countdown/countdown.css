@@ -298,6 +298,14 @@ body.countdown-page {
   transition-delay: 160ms;
 }
 
+.settings-menu-wrap.is-open .settings-menu-panel > *:nth-child(5) {
+  transition-delay: 200ms;
+}
+
+.settings-menu-wrap.is-open .settings-menu-panel > *:nth-child(6) {
+  transition-delay: 240ms;
+}
+
 .settings-menu-title {
   margin: 0;
   font-size: 0.82rem;
@@ -317,6 +325,52 @@ body.countdown-page {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: color-mix(in oklab, var(--menu-text), transparent 28%);
+}
+
+.accent-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.42rem;
+}
+
+.accent-chip {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.38rem;
+  border: 1px solid color-mix(in oklab, var(--menu-border), transparent 12%);
+  border-radius: 0.56rem;
+  background: color-mix(in oklab, var(--menu-bg), white 8%);
+  color: var(--menu-text);
+  font-weight: 700;
+  font-size: 0.74rem;
+  letter-spacing: 0.02em;
+  padding: 0.44rem 0.45rem;
+  text-align: left;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.accent-chip-dot {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  background: linear-gradient(135deg, var(--chip-a), var(--chip-b));
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+
+.accent-chip.is-active {
+  border-color: color-mix(in oklab, var(--accent-2), white 18%);
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--accent), transparent 72%),
+    color-mix(in oklab, var(--accent-2), transparent 62%)
+  );
+}
+
+.accent-chip:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
 .slideshow-size-controls {
@@ -432,7 +486,7 @@ body.countdown-page {
   justify-items: center;
   padding: 0.8rem 0.4rem;
   border-radius: 0.72rem;
-  border: 1px solid rgba(126, 215, 180, 0.32);
+  border: 1px solid color-mix(in oklab, var(--accent), transparent 62%);
   background: var(--surface-strong);
 }
 
@@ -642,18 +696,22 @@ input[type='checkbox'] {
   height: 1rem;
   margin: 0;
   padding: 0;
-  accent-color: #8ecbf2;
+  accent-color: var(--accent-2);
   flex: 0 0 auto;
 }
 
 button {
   cursor: pointer;
-  background: linear-gradient(135deg, rgba(126, 215, 180, 0.3), rgba(134, 200, 255, 0.35));
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--accent), transparent 66%),
+    color-mix(in oklab, var(--accent-2), transparent 58%)
+  );
   font-weight: 700;
 }
 
 button:hover:not(:disabled) {
-  border-color: #9ed0ff;
+  border-color: color-mix(in oklab, var(--accent-2), white 16%);
 }
 
 button:disabled {
@@ -822,6 +880,10 @@ body.countdown-readonly .countdown-shell {
   }
 
   .settings-theme-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .accent-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

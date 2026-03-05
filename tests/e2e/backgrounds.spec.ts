@@ -36,6 +36,7 @@ test.describe('background rotation', () => {
     await page.getByTestId('settings-menu-toggle').click();
     await expect(page.getByTestId('theme-light-toggle')).toBeVisible();
     await expect(page.getByTestId('theme-dark-toggle')).toBeVisible();
+    await expect(page.getByTestId('accent-blue')).toBeVisible();
     await expect(page.getByTestId('pack-light-toggle')).toBeVisible();
     await expect(page.getByTestId('pack-dark-toggle')).toBeVisible();
 
@@ -48,6 +49,19 @@ test.describe('background rotation', () => {
     await expect
       .poll(() => page.evaluate(() => String(document.body?.dataset?.colorTheme || '')))
       .toEqual('light');
+
+    await page.getByTestId('settings-menu-toggle').click();
+    await page.getByTestId('accent-blue').click();
+    await expect
+      .poll(() =>
+        page.evaluate(() => String((window as any).__COUNTDOWN_TEST_API__?.accentPalette?.() || ''))
+      )
+      .toEqual('blue');
+    await expect
+      .poll(() =>
+        page.evaluate(() => String(getComputedStyle(document.body).getPropertyValue('--accent') || '').trim())
+      )
+      .toEqual('#4fc3ff');
 
     const initialUrl = String(
       await page.getByTestId('bg-image').evaluate((node) => (node as HTMLElement).dataset.backgroundUrl || '')
