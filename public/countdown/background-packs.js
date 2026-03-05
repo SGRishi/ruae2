@@ -381,7 +381,7 @@ const ALL_UNIQUE_URLS = (() => {
   return out;
 })();
 
-export const BACKGROUND_PACKS = {
+const BACKGROUND_PACKS = {
   legacy: rankPack('legacy', LEGACY_BACKGROUND_IMAGES.length),
   dark: rankPack('dark', 120),
   light: rankPack('light', 120),
@@ -389,12 +389,23 @@ export const BACKGROUND_PACKS = {
   mixed: rankPack('mixed', 200),
 };
 
-export const BACKGROUND_PACK_OPTIONS = Object.entries(PACK_META).map(([key, meta]) => ({
+const BACKGROUND_PACK_OPTIONS = Object.entries(PACK_META).map(([key, meta]) => ({
   key,
   label: meta.label,
   description: meta.description,
   count: BACKGROUND_PACKS[key]?.length || 0,
 }));
 
-export const DEFAULT_BACKGROUND_PACK = 'legacy';
-export const TOTAL_BACKGROUND_COUNT = ALL_UNIQUE_URLS.length;
+const DEFAULT_BACKGROUND_PACK = 'legacy';
+const TOTAL_BACKGROUND_COUNT = ALL_UNIQUE_URLS.length;
+
+const runtimePayload = {
+  packs: BACKGROUND_PACKS,
+  packOptions: BACKGROUND_PACK_OPTIONS,
+  defaultPack: DEFAULT_BACKGROUND_PACK,
+  totalCount: TOTAL_BACKGROUND_COUNT,
+};
+
+if (typeof globalThis !== 'undefined') {
+  globalThis.__COUNTDOWN_BACKGROUND_PACKS__ = runtimePayload;
+}

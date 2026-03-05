@@ -1,9 +1,14 @@
-import {
-  BACKGROUND_PACK_OPTIONS,
-  BACKGROUND_PACKS,
-  DEFAULT_BACKGROUND_PACK,
-  TOTAL_BACKGROUND_COUNT,
-} from './background-packs.js';
+const backgroundPackRuntime =
+  (typeof globalThis !== 'undefined' && globalThis.__COUNTDOWN_BACKGROUND_PACKS__) || {};
+const BACKGROUND_PACKS =
+  backgroundPackRuntime.packs && typeof backgroundPackRuntime.packs === 'object'
+    ? backgroundPackRuntime.packs
+    : {};
+const BACKGROUND_PACK_OPTIONS = Array.isArray(backgroundPackRuntime.packOptions)
+  ? backgroundPackRuntime.packOptions
+  : [];
+const DEFAULT_BACKGROUND_PACK = String(backgroundPackRuntime.defaultPack || 'legacy');
+const TOTAL_BACKGROUND_COUNT = Number(backgroundPackRuntime.totalCount) || 0;
 
 const IMAGE_ROTATION_INTERVAL_MS = 60_000;
 const TICK_INTERVAL_MS = 250;
