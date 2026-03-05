@@ -13,9 +13,17 @@ const TOTAL_BACKGROUND_COUNT = Number(backgroundPackRuntime.totalCount) || 0;
 const IMAGE_ROTATION_INTERVAL_MS = 60_000;
 const TICK_INTERVAL_MS = 250;
 const OWNER_TOKEN_KEY = 'countdownOwnerTokens:v3';
+const BACKGROUND_PACK_STORAGE_KEY = 'countdownBackgroundPack:v1';
+const COLOR_THEME_STORAGE_KEY = 'countdownColorTheme:v1';
 const CLASSIC_FM_STREAM = 'https://ice-the.musicradio.com/ClassicFMMP3';
 const UK_TIME_ZONE = 'Europe/London';
 const UNIT_ORDER = ['days', 'hours', 'minutes', 'seconds'];
+const COLOR_THEME_OPTIONS = [
+  { key: 'light', label: 'Light' },
+  { key: 'dark', label: 'Dark' },
+  { key: 'nature', label: 'Nature' },
+];
+const DEFAULT_COLOR_THEME = 'dark';
 const TEST_CONFIG = typeof window !== 'undefined' ? window.__COUNTDOWN_TEST__ || null : null;
 const IS_TEST_MODE = Boolean(TEST_CONFIG);
 
@@ -24,10 +32,11 @@ const bgNextEl = document.querySelector('[data-testid="bg-next"]');
 const bgPackSelectEl = document.querySelector('[data-testid="bg-pack-select"]');
 const bgPackNoteEl = document.querySelector('[data-testid="bg-pack-note"]');
 const bgPackNoteDisplayEl = document.querySelector('[data-testid="bg-pack-note-display"]');
-const bgPackMenuToggleEl = document.querySelector('[data-testid="pack-menu-toggle"]');
-const bgPackMenuPanelEl = document.querySelector('[data-testid="pack-menu-panel"]');
-const bgPackMenuWrapEl = document.querySelector('[data-testid="pack-menu-wrap"]');
+const settingsMenuToggleEl = document.querySelector('[data-testid="settings-menu-toggle"]');
+const settingsMenuPanelEl = document.querySelector('[data-testid="settings-menu-panel"]');
+const settingsMenuWrapEl = document.querySelector('[data-testid="settings-menu-wrap"]');
 const bgPackShortcutEls = Array.from(document.querySelectorAll('[data-pack-shortcut]'));
+const themeShortcutEls = Array.from(document.querySelectorAll('[data-theme-shortcut]'));
 const formEl = document.querySelector('[data-testid="timer-form"]');
 const statusEl = document.querySelector('[data-testid="countdown-status"]');
 const errorEl = document.querySelector('[data-testid="timer-error"]');
@@ -88,6 +97,7 @@ let ownerToken = '';
 let embedMode = false;
 let activeBackgroundPack = DEFAULT_BACKGROUND_PACK;
 let activeBackgroundImages = BACKGROUND_PACKS[DEFAULT_BACKGROUND_PACK] || [];
+let activeColorTheme = DEFAULT_COLOR_THEME;
 let currentBackgroundIndex = 0;
 let serverTimeOffsetMs = 0;
 let passwordGateVisible = false;
@@ -229,6 +239,47 @@ function rememberOwnerToken(timerId, token) {
   const store = readOwnerTokenStore();
   store[id] = normalizedToken;
   writeOwnerTokenStore(store);
+}
+
+function readStorageText(key) {
+  try {
+    return String(localStorage.getItem(String(key || '')) || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+function writeStorageText(key, value) {
+  try {
+    localStorage.setItem(String(key || ''), String(value || ''));
+  } catch {
+    // Ignore storage quota and privacy mode errors.
+  }
+}
+
+function normalizeColorTheme(value) {
+  const requested = String(value || '').trim().toLowerCase();
+  return COLOR_THEME_OPTIONS.some((theme) => theme.key === requested) ? requested : '';
+}
+
+function getStoredColorTheme() {
+  return normalizeColorTheme(readStorageText(COLOR_THEME_STORAGE_KEY));
+}
+
+function rememberColorTheme(theme) {
+  const normalized = normalizeColorTheme(theme);
+  if (!normalized) return;
+  writeStorageText(COLOR_THEME_STORAGE_KEY, normalized);
+}
+
+function getStoredBackgroundPack() {
+  return String(readStorageText(BACKGROUND_PACK_STORAGE_KEY) || '').trim();
+}
+
+function rememberBackgroundPack(packKey) {
+  const normalized = String(packKey || '').trim();
+  if (!normalized) return;
+  writeStorageText(BACKGROUND_PACK_STORAGE_KEY, normalized);
 }
 
 function setError(message) {
@@ -701,6 +752,32 @@ function renderCountdown() {
   }
 }
 
+function syncThemeShortcutButtons() {
+  for (const button of themeShortcutEls) {
+    const themeKey = String(button?.dataset?.themeShortcut || '').trim();
+    const isActive = themeKey === activeColorTheme;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-pressed', String(isActive));
+  }
+}
+
+function setColorTheme(themeKey, options = {}) {
+  const shouldPersist = options.persist !== false;
+  const nextTheme = normalizeColorTheme(themeKey) || DEFAULT_COLOR_THEME;
+  activeColorTheme = nextTheme;
+
+  for (const option of COLOR_THEME_OPTIONS) {
+    document.body.classList.remove(`countdown-theme-${option.key}`);
+  }
+  document.body.classList.add(`countdown-theme-${nextTheme}`);
+  document.body.dataset.colorTheme = nextTheme;
+
+  syncThemeShortcutButtons();
+  if (shouldPersist) {
+    rememberColorTheme(nextTheme);
+  }
+}
+
 function backgroundPackOption(packKey) {
   return BACKGROUND_PACK_OPTIONS.find((option) => option.key === packKey) || null;
 }
@@ -748,11 +825,12 @@ function renderBackgroundPackNote() {
   if (bgPackNoteDisplayEl) bgPackNoteDisplayEl.textContent = text;
 }
 
-function setPackMenuOpen(open) {
-  if (!bgPackMenuToggleEl || !bgPackMenuPanelEl) return;
+function setSettingsMenuOpen(open) {
+  if (!settingsMenuToggleEl || !settingsMenuPanelEl || !settingsMenuWrapEl) return;
   const nextOpen = Boolean(open);
-  bgPackMenuPanelEl.hidden = !nextOpen;
-  bgPackMenuToggleEl.setAttribute('aria-expanded', String(nextOpen));
+  settingsMenuWrapEl.classList.toggle('is-open', nextOpen);
+  settingsMenuToggleEl.setAttribute('aria-expanded', String(nextOpen));
+  settingsMenuPanelEl.setAttribute('aria-hidden', String(!nextOpen));
 }
 
 function syncPackShortcutButtons() {
@@ -764,7 +842,8 @@ function syncPackShortcutButtons() {
   }
 }
 
-function setBackgroundPack(packKey) {
+function setBackgroundPack(packKey, options = {}) {
+  const shouldPersist = options.persist !== false;
   const next = availableBackgroundPool(packKey);
   activeBackgroundPack = next.key;
   activeBackgroundImages = next.images;
@@ -777,6 +856,10 @@ function setBackgroundPack(packKey) {
   renderBackgroundPackNote();
   syncPackShortcutButtons();
   setBackground(0);
+
+  if (shouldPersist) {
+    rememberBackgroundPack(activeBackgroundPack);
+  }
 }
 
 function hydrateBackgroundPackSelect() {
@@ -1284,28 +1367,36 @@ function setupEvents() {
   bgPackSelectEl?.addEventListener('change', () => {
     setBackgroundPack(bgPackSelectEl.value);
   });
-  bgPackMenuToggleEl?.addEventListener('click', () => {
-    const open = bgPackMenuToggleEl.getAttribute('aria-expanded') === 'true';
-    setPackMenuOpen(!open);
+  settingsMenuToggleEl?.addEventListener('click', () => {
+    const open = settingsMenuToggleEl.getAttribute('aria-expanded') === 'true';
+    setSettingsMenuOpen(!open);
   });
   document.addEventListener('click', (event) => {
-    if (!bgPackMenuWrapEl || !bgPackMenuToggleEl || !bgPackMenuPanelEl) return;
-    if (bgPackMenuPanelEl.hidden) return;
+    if (!settingsMenuWrapEl || !settingsMenuPanelEl) return;
+    if (!settingsMenuWrapEl.classList.contains('is-open')) return;
     const target = event.target;
     if (!(target instanceof Node)) return;
-    if (bgPackMenuWrapEl.contains(target)) return;
-    setPackMenuOpen(false);
+    if (settingsMenuWrapEl.contains(target)) return;
+    setSettingsMenuOpen(false);
   });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
-    setPackMenuOpen(false);
+    setSettingsMenuOpen(false);
   });
   for (const button of bgPackShortcutEls) {
     button.addEventListener('click', () => {
       const packKey = String(button?.dataset?.packShortcut || '').trim();
       if (!packKey) return;
       setBackgroundPack(packKey);
-      setPackMenuOpen(false);
+      setSettingsMenuOpen(false);
+    });
+  }
+  for (const button of themeShortcutEls) {
+    button.addEventListener('click', () => {
+      const themeKey = String(button?.dataset?.themeShortcut || '').trim();
+      if (!themeKey) return;
+      setColorTheme(themeKey);
+      setSettingsMenuOpen(false);
     });
   }
 
@@ -1400,6 +1491,9 @@ function setupTestApi() {
     backgroundPack() {
       return activeBackgroundPack;
     },
+    colorTheme() {
+      return activeColorTheme;
+    },
     countdownPath(urlValue) {
       return toPathAndSearch(urlValue);
     },
@@ -1424,8 +1518,13 @@ async function init() {
   }
   syncLayoutMode();
 
+  const storedTheme = getStoredColorTheme() || DEFAULT_COLOR_THEME;
+  setColorTheme(storedTheme, { persist: false });
+  setSettingsMenuOpen(false);
+
   hydrateBackgroundPackSelect();
-  setBackgroundPack(DEFAULT_BACKGROUND_PACK);
+  const initialPack = getStoredBackgroundPack() || DEFAULT_BACKGROUND_PACK;
+  setBackgroundPack(initialPack, { persist: false });
   updateUrlFields('');
   syncVisibilityControls();
   setTitleDisplay(titleInputEl?.value || 'Countdown');

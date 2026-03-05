@@ -45,6 +45,7 @@ test.describe('public/private/embed urls', () => {
 
     await page.goto(toPathnameAndSearch(publicUrl), { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('timer-form')).toBeHidden();
+    await expect(page.getByTestId('settings-menu-toggle')).toBeVisible();
     await expect(page.getByTestId('music-play')).toBeVisible();
     await expect(page.getByTestId('volume-slider')).toBeVisible();
 
@@ -53,6 +54,7 @@ test.describe('public/private/embed urls', () => {
     const viewerA = await openIsolated(mkContext, toPathnameAndSearch(publicUrl));
     await expect(viewerA.page.getByTestId('countdown-display')).toBeVisible();
     await expect(viewerA.page.getByTestId('timer-form')).toBeHidden();
+    await expect(viewerA.page.getByTestId('settings-menu-toggle')).toBeVisible();
     await expect(viewerA.page.getByTestId('music-play')).toBeVisible();
     await expect(viewerA.page.getByTestId('volume-slider')).toBeVisible();
 
@@ -126,6 +128,7 @@ test.describe('public/private/embed urls', () => {
     await expect(privateViewer.page.getByTestId('password-gate')).toBeHidden();
     await expect(privateViewer.page.getByTestId('countdown-display')).toBeVisible();
     await expect(privateViewer.page.getByTestId('timer-form')).toBeHidden();
+    await expect(privateViewer.page.getByTestId('settings-menu-toggle')).toBeVisible();
     await expect(privateViewer.page.getByTestId('music-play')).toBeVisible();
     await expect(privateViewer.page.getByTestId('volume-slider')).toBeVisible();
 

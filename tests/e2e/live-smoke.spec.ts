@@ -20,6 +20,7 @@ test('live smoke: countdown page loads in read-only mode', async ({ page }) => {
   if (hasNewUi) {
     await expect(page.getByTestId('bg-image')).toBeVisible();
     await expect(page.getByTestId('countdown-display')).toBeVisible();
+    await expect(page.getByTestId('settings-menu-toggle')).toBeVisible();
     await expect(page.getByTestId('label-days')).toHaveText(/days/i);
     await expect(page.getByTestId('audio-element')).toHaveAttribute(
       'src',

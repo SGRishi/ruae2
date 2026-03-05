@@ -1,12 +1,134 @@
 :root {
   --bg: #041019;
+  --backdrop-spot-1: rgba(86, 182, 255, 0.24);
+  --backdrop-spot-2: rgba(118, 241, 170, 0.16);
   --surface: rgba(5, 20, 32, 0.67);
   --surface-strong: rgba(7, 24, 39, 0.86);
   --text: #f8fbff;
   --muted: #c7d8e9;
+  --status: #e6eff8;
   --accent: #7ed7b4;
   --accent-2: #86c8ff;
   --danger: #ff6f7f;
+  --overlay-start: rgba(2, 10, 18, 0.44);
+  --overlay-end: rgba(3, 10, 18, 0.76);
+  --shell-border: rgba(151, 210, 255, 0.35);
+  --menu-bg: rgba(5, 17, 29, 0.96);
+  --menu-border: rgba(146, 206, 245, 0.34);
+  --menu-text: #e6f2ff;
+  --menu-note: #d3e8fb;
+  --panel-bg: rgba(5, 16, 29, 0.62);
+  --panel-border: rgba(143, 214, 255, 0.2);
+  --input-bg: rgba(9, 24, 38, 0.94);
+  --input-border: rgba(255, 255, 255, 0.28);
+  --focus: #8dd8ff;
+  --unit-label: #c0d7ea;
+  --progress-text: #d5e7f7;
+  --resolved: #d2e8fb;
+  --resolved-link: #8cd5ff;
+  --error-bg: rgba(64, 14, 24, 0.76);
+  --error-border: rgba(255, 111, 127, 0.55);
+  --error-text: #ffd5dc;
+  --credits: #cae1f4;
+}
+
+body.countdown-page.countdown-theme-dark {
+  --bg: #03101a;
+  --backdrop-spot-1: rgba(63, 152, 214, 0.28);
+  --backdrop-spot-2: rgba(56, 160, 132, 0.17);
+  --surface: rgba(5, 20, 32, 0.68);
+  --surface-strong: rgba(7, 24, 39, 0.87);
+  --text: #f8fbff;
+  --muted: #c7d8e9;
+  --status: #e6eff8;
+  --accent: #7ed7b4;
+  --accent-2: #86c8ff;
+  --overlay-start: rgba(2, 10, 18, 0.44);
+  --overlay-end: rgba(3, 10, 18, 0.76);
+  --shell-border: rgba(151, 210, 255, 0.35);
+  --menu-bg: rgba(5, 17, 29, 0.96);
+  --menu-border: rgba(146, 206, 245, 0.34);
+  --menu-text: #e6f2ff;
+  --menu-note: #d3e8fb;
+  --panel-bg: rgba(5, 16, 29, 0.62);
+  --panel-border: rgba(143, 214, 255, 0.2);
+  --input-bg: rgba(9, 24, 38, 0.94);
+  --input-border: rgba(255, 255, 255, 0.28);
+  --focus: #8dd8ff;
+  --unit-label: #c0d7ea;
+  --progress-text: #d5e7f7;
+  --resolved: #d2e8fb;
+  --resolved-link: #8cd5ff;
+  --error-bg: rgba(64, 14, 24, 0.76);
+  --error-border: rgba(255, 111, 127, 0.55);
+  --error-text: #ffd5dc;
+  --credits: #cae1f4;
+}
+
+body.countdown-page.countdown-theme-light {
+  --bg: #eaf2fa;
+  --backdrop-spot-1: rgba(102, 173, 231, 0.33);
+  --backdrop-spot-2: rgba(119, 204, 174, 0.26);
+  --surface: rgba(255, 255, 255, 0.84);
+  --surface-strong: rgba(245, 250, 255, 0.92);
+  --text: #132739;
+  --muted: #33546f;
+  --status: #23455f;
+  --accent: #2f9f82;
+  --accent-2: #3d8fcf;
+  --overlay-start: rgba(225, 237, 248, 0.42);
+  --overlay-end: rgba(216, 231, 244, 0.74);
+  --shell-border: rgba(83, 142, 184, 0.38);
+  --menu-bg: rgba(255, 255, 255, 0.98);
+  --menu-border: rgba(83, 142, 184, 0.35);
+  --menu-text: #163047;
+  --menu-note: #35607f;
+  --panel-bg: rgba(244, 250, 255, 0.92);
+  --panel-border: rgba(83, 142, 184, 0.26);
+  --input-bg: rgba(255, 255, 255, 0.97);
+  --input-border: rgba(50, 95, 131, 0.31);
+  --focus: #2a8bc9;
+  --unit-label: #436a89;
+  --progress-text: #2f536f;
+  --resolved: #224764;
+  --resolved-link: #1d77b6;
+  --error-bg: rgba(255, 238, 242, 0.95);
+  --error-border: rgba(191, 76, 99, 0.42);
+  --error-text: #8c2037;
+  --credits: #2c4f6f;
+}
+
+body.countdown-page.countdown-theme-nature {
+  --bg: #112216;
+  --backdrop-spot-1: rgba(72, 161, 108, 0.29);
+  --backdrop-spot-2: rgba(153, 203, 103, 0.19);
+  --surface: rgba(16, 37, 23, 0.71);
+  --surface-strong: rgba(19, 46, 29, 0.9);
+  --text: #eff9ee;
+  --muted: #c1dcc4;
+  --status: #d8f0d8;
+  --accent: #95d069;
+  --accent-2: #5cb48f;
+  --overlay-start: rgba(8, 19, 10, 0.42);
+  --overlay-end: rgba(9, 20, 12, 0.78);
+  --shell-border: rgba(152, 212, 141, 0.32);
+  --menu-bg: rgba(12, 33, 20, 0.96);
+  --menu-border: rgba(152, 212, 141, 0.35);
+  --menu-text: #e6f7de;
+  --menu-note: #c3e6ba;
+  --panel-bg: rgba(12, 30, 18, 0.67);
+  --panel-border: rgba(152, 212, 141, 0.24);
+  --input-bg: rgba(17, 43, 25, 0.95);
+  --input-border: rgba(181, 220, 172, 0.27);
+  --focus: #9bd89f;
+  --unit-label: #bad9b3;
+  --progress-text: #d4ecd0;
+  --resolved: #d4eed2;
+  --resolved-link: #b8e67d;
+  --error-bg: rgba(75, 18, 20, 0.82);
+  --error-border: rgba(221, 138, 126, 0.48);
+  --error-text: #ffd7cf;
+  --credits: #cce9c3;
 }
 
 * {
@@ -26,8 +148,9 @@ body {
 body.countdown-page {
   color: var(--text);
   font-family: 'Avenir Next', 'Nunito Sans', 'Segoe UI', sans-serif;
-  background: radial-gradient(circle at 16% 18%, rgba(86, 182, 255, 0.24), transparent 50%),
-    radial-gradient(circle at 86% 14%, rgba(118, 241, 170, 0.16), transparent 44%), var(--bg);
+  background: radial-gradient(circle at 16% 18%, var(--backdrop-spot-1), transparent 50%),
+    radial-gradient(circle at 86% 14%, var(--backdrop-spot-2), transparent 44%), var(--bg);
+  transition: background 380ms ease, color 260ms ease;
 }
 
 .countdown-background,
@@ -45,7 +168,8 @@ body.countdown-page {
 }
 
 .countdown-overlay {
-  background: linear-gradient(180deg, rgba(2, 10, 18, 0.44), rgba(3, 10, 18, 0.76));
+  background: linear-gradient(180deg, var(--overlay-start), var(--overlay-end));
+  transition: background 300ms ease;
 }
 
 .countdown-main {
@@ -58,15 +182,17 @@ body.countdown-page {
 }
 
 .countdown-shell {
+  position: relative;
   width: min(60rem, 100%);
   display: grid;
   gap: clamp(0.75rem, 2vw, 1rem);
   background: var(--surface);
-  border: 1px solid rgba(151, 210, 255, 0.35);
+  border: 1px solid var(--shell-border);
   border-radius: 1rem;
-  padding: clamp(1rem, 2.8vw, 1.45rem);
+  padding: clamp(1rem, 2.8vw, 1.45rem) clamp(1rem, 2.8vw, 1.45rem) clamp(1rem, 2.8vw, 1.45rem);
   backdrop-filter: blur(3px);
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.28);
+  transition: background 320ms ease, border-color 320ms ease, box-shadow 320ms ease;
 }
 
 .countdown-title {
@@ -76,52 +202,127 @@ body.countdown-page {
   font-weight: 800;
   line-height: 1.15;
   text-wrap: balance;
+  padding-inline: clamp(0.4rem, 12vw, 6rem);
 }
 
 .countdown-status {
   margin: 0;
   text-align: center;
-  color: #e6eff8;
+  color: var(--status);
   min-height: 1.4em;
 }
 
-.pack-menu-wrap {
-  position: relative;
-  justify-self: end;
-  width: min(20rem, 100%);
+.settings-menu-wrap {
+  position: absolute;
+  top: clamp(0.62rem, 1.6vw, 0.95rem);
+  right: clamp(0.62rem, 1.6vw, 0.95rem);
+  width: min(20rem, calc(100% - 1.2rem));
+  z-index: 4;
 }
 
-.pack-menu-toggle {
-  width: auto;
-  justify-self: end;
-  border: 1px solid rgba(146, 206, 245, 0.34);
-  border-radius: 0.56rem;
-  background: rgba(7, 22, 37, 0.82);
-  color: #e6f2ff;
+.settings-menu-toggle {
+  display: grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  margin-left: auto;
+  border: 1px solid var(--menu-border);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--menu-bg), transparent 8%);
+  color: var(--menu-text);
+  font-size: 1.1rem;
   font-weight: 700;
-  letter-spacing: 0.03em;
-  padding: 0.48rem 0.72rem;
+  letter-spacing: 0.01em;
+  padding: 0;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+  transition: transform 240ms ease, background 240ms ease, border-color 240ms ease;
 }
 
-.pack-menu-panel {
+.settings-menu-wrap.is-open .settings-menu-toggle {
+  transform: rotate(60deg) scale(1.04);
+}
+
+.settings-menu-panel {
   position: absolute;
   top: calc(100% + 0.45rem);
   right: 0;
   width: min(20rem, calc(100vw - 2.6rem));
   display: grid;
-  gap: 0.45rem;
-  padding: 0.62rem;
-  border: 1px solid rgba(146, 206, 245, 0.34);
+  gap: 0.56rem;
+  padding: 0.72rem;
+  border: 1px solid var(--menu-border);
   border-radius: 0.62rem;
-  background: rgba(5, 17, 29, 0.94);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+  background: var(--menu-bg);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.33);
+  opacity: 0;
+  transform: translateY(-0.4rem) scale(0.98);
+  visibility: hidden;
+  pointer-events: none;
+  transform-origin: top right;
+  transition: opacity 220ms ease, transform 240ms ease, visibility 220ms step-end;
   z-index: 3;
 }
 
-.pack-menu-note {
+.settings-menu-wrap.is-open .settings-menu-panel {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 220ms ease, transform 240ms ease, visibility 0ms step-start;
+}
+
+.settings-menu-panel > * {
+  opacity: 0;
+  transform: translateY(-0.22rem);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.settings-menu-wrap.is-open .settings-menu-panel > * {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.settings-menu-wrap.is-open .settings-menu-panel > *:nth-child(1) {
+  transition-delay: 40ms;
+}
+
+.settings-menu-wrap.is-open .settings-menu-panel > *:nth-child(2) {
+  transition-delay: 80ms;
+}
+
+.settings-menu-wrap.is-open .settings-menu-panel > *:nth-child(3) {
+  transition-delay: 120ms;
+}
+
+.settings-menu-wrap.is-open .settings-menu-panel > *:nth-child(4) {
+  transition-delay: 160ms;
+}
+
+.settings-menu-title {
+  margin: 0;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: color-mix(in oklab, var(--menu-text), transparent 22%);
+}
+
+.settings-group {
+  display: grid;
+  gap: 0.36rem;
+}
+
+.settings-group-label {
+  margin: 0;
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--menu-text), transparent 28%);
+}
+
+.settings-menu-note {
   margin: 0;
   min-height: 1.2em;
-  color: #d3e8fb;
+  color: var(--menu-note);
   font-size: 0.8rem;
   line-height: 1.3;
 }
@@ -132,25 +333,38 @@ body.countdown-page {
   gap: 0.45rem;
 }
 
+.settings-theme-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .pack-toggle-row--more {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .pack-shortcut {
   width: 100%;
-  border: 1px solid rgba(146, 206, 245, 0.34);
+  border: 1px solid color-mix(in oklab, var(--menu-border), transparent 12%);
   border-radius: 0.56rem;
-  background: rgba(7, 22, 37, 0.78);
-  color: #e6f2ff;
+  background: color-mix(in oklab, var(--menu-bg), white 6%);
+  color: var(--menu-text);
   font-weight: 700;
   letter-spacing: 0.02em;
   padding: 0.52rem 0.58rem;
   text-align: center;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
 }
 
 .pack-shortcut.is-active {
-  border-color: #9ed0ff;
-  background: linear-gradient(135deg, rgba(126, 215, 180, 0.32), rgba(134, 200, 255, 0.38));
+  border-color: color-mix(in oklab, var(--accent-2), white 18%);
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--accent), transparent 68%),
+    color-mix(in oklab, var(--accent-2), transparent 58%)
+  );
+}
+
+.pack-shortcut:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
 .countdown-display {
@@ -174,7 +388,7 @@ body.countdown-page {
   font-size: 0.76rem;
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  color: #c0d7ea;
+  color: var(--unit-label);
 }
 
 .unit-value {
@@ -197,7 +411,7 @@ body.countdown-page {
   justify-content: space-between;
   gap: 0.5rem;
   font-size: 0.85rem;
-  color: #d5e7f7;
+  color: var(--progress-text);
 }
 
 .progress-track {
@@ -220,7 +434,7 @@ body.countdown-page {
   min-height: 1.3em;
   text-align: center;
   font-size: clamp(1rem, 1vw + 0.75rem, 1.3rem);
-  color: #d2e8fb;
+  color: var(--resolved);
 }
 
 .resolved-source {
@@ -232,7 +446,7 @@ body.countdown-page {
 }
 
 .resolved-source a {
-  color: #8cd5ff;
+  color: var(--resolved-link);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -244,10 +458,11 @@ body.countdown-page {
 .audio-row {
   display: grid;
   gap: 0.55rem;
-  background: rgba(5, 16, 29, 0.62);
-  border: 1px solid rgba(143, 214, 255, 0.2);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
   border-radius: 0.75rem;
   padding: 0.8rem;
+  transition: background 260ms ease, border-color 260ms ease;
 }
 
 .timer-form label,
@@ -363,10 +578,11 @@ button {
   width: 100%;
   font: inherit;
   color: var(--text);
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid var(--input-border);
   border-radius: 0.56rem;
-  background: rgba(9, 24, 38, 0.94);
+  background: var(--input-bg);
   padding: 0.62rem 0.72rem;
+  transition: background 220ms ease, border-color 220ms ease, color 220ms ease;
 }
 
 input[type='checkbox'] {
@@ -396,7 +612,7 @@ button:disabled {
 input:focus,
 textarea:focus,
 button:focus {
-  outline: 2px solid #8dd8ff;
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -444,7 +660,7 @@ button:focus {
 .music-error {
   margin: 0;
   min-height: 1.2em;
-  color: #ffd5dc;
+  color: var(--error-text);
 }
 
 .test-control {
@@ -456,10 +672,10 @@ button:focus {
 
 .error-message {
   margin: 0;
-  border: 1px solid rgba(255, 111, 127, 0.55);
+  border: 1px solid var(--error-border);
   border-radius: 0.6rem;
-  background: rgba(64, 14, 24, 0.76);
-  color: #ffd5dc;
+  background: var(--error-bg);
+  color: var(--error-text);
   padding: 0.75rem;
 }
 
@@ -467,7 +683,7 @@ button:focus {
   margin: 0;
   text-align: right;
   font-size: 0.74rem;
-  color: #cae1f4;
+  color: var(--credits);
 }
 
 .credits a {
@@ -524,27 +740,36 @@ body.countdown-readonly .countdown-shell {
     padding: 0.82rem;
   }
 
+  .countdown-title {
+    padding-inline: clamp(0.35rem, 16vw, 4.7rem);
+  }
+
   .countdown-display {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .settings-menu-wrap {
+    width: min(19rem, calc(100% - 1rem));
+    top: 0.5rem;
+    right: 0.5rem;
+  }
+
+  .settings-menu-toggle {
+    width: 2.3rem;
+  }
+
+  .settings-menu-panel {
+    width: 100%;
+    left: auto;
+    right: 0;
+  }
+
   .pack-toggle-row--more {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .pack-menu-wrap {
-    width: 100%;
-  }
-
-  .pack-menu-toggle {
-    width: 100%;
-    justify-self: stretch;
-  }
-
-  .pack-menu-panel {
-    width: 100%;
-    left: 0;
-    right: auto;
+  .settings-theme-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .date-time-grid {
