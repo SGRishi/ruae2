@@ -24,12 +24,14 @@ test.describe('background rotation', () => {
     await stubBackgroundImages(page);
   });
 
-  test('renders background + overlay and rotates via test-only control', async ({ page }) => {
+  test('renders background + overlay and supports fixed slideshow sets with prev/next', async ({ page }) => {
     await page.goto('/countdown', { waitUntil: 'domcontentloaded' });
 
     await expect(page.getByTestId('bg-image')).toBeVisible();
     await expect(page.getByTestId('overlay')).toBeVisible();
+    await expect(page.getByTestId('bg-prev')).toBeVisible();
     await expect(page.getByTestId('bg-next')).toBeVisible();
+    await expect(page.getByTestId('slideshow-position')).toContainText(/slide 1 of/i);
     await expect(page.getByTestId('settings-menu-toggle')).toBeVisible();
     await page.getByTestId('settings-menu-toggle').click();
     await expect(page.getByTestId('theme-light-toggle')).toBeVisible();
@@ -68,16 +70,35 @@ test.describe('background rotation', () => {
       )
       .toEqual('light');
 
+    await page.getByTestId('settings-menu-toggle').click();
+    await page.getByTestId('slideshow-size-input').fill('3');
+    await page.getByTestId('slideshow-size-apply').click();
+    await expect(page.getByTestId('slideshow-order-note')).toContainText(/order locked/i);
+    await expect(page.getByTestId('slideshow-position')).toContainText('Slide 1 of 3');
+    await expect
+      .poll(() =>
+        page.evaluate(() => Number((window as any).__COUNTDOWN_TEST_API__?.backgroundSetSize?.() || 0))
+      )
+      .toBe(3);
+
     const firstUrl = String(
       await page.getByTestId('bg-image').evaluate((node) => (node as HTMLElement).dataset.backgroundUrl || '')
     );
 
     await page.getByTestId('bg-next').click();
+    await expect(page.getByTestId('slideshow-position')).toContainText('Slide 2 of 3');
 
+    const secondUrl = String(
+      await page.getByTestId('bg-image').evaluate((node) => (node as HTMLElement).dataset.backgroundUrl || '')
+    );
+    expect(secondUrl).not.toEqual(firstUrl);
+
+    await page.getByTestId('bg-prev').click();
+    await expect(page.getByTestId('slideshow-position')).toContainText('Slide 1 of 3');
     await expect
       .poll(() =>
         page.getByTestId('bg-image').evaluate((node) => (node as HTMLElement).dataset.backgroundUrl || '')
       )
-      .not.toEqual(firstUrl);
+      .toEqual(firstUrl);
   });
 });

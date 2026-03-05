@@ -14,6 +14,7 @@ const IMAGE_ROTATION_INTERVAL_MS = 60_000;
 const TICK_INTERVAL_MS = 250;
 const OWNER_TOKEN_KEY = 'countdownOwnerTokens:v3';
 const BACKGROUND_PACK_STORAGE_KEY = 'countdownBackgroundPack:v1';
+const BACKGROUND_SLIDESHOW_LIMIT_STORAGE_KEY = 'countdownBackgroundSetSize:v1';
 const COLOR_THEME_STORAGE_KEY = 'countdownColorTheme:v1';
 const CLASSIC_FM_STREAM = 'https://ice-the.musicradio.com/ClassicFMMP3';
 const UK_TIME_ZONE = 'Europe/London';
@@ -28,10 +29,15 @@ const TEST_CONFIG = typeof window !== 'undefined' ? window.__COUNTDOWN_TEST__ ||
 const IS_TEST_MODE = Boolean(TEST_CONFIG);
 
 const backgroundEl = document.querySelector('[data-testid="bg-image"]');
+const bgPrevEl = document.querySelector('[data-testid="bg-prev"]');
 const bgNextEl = document.querySelector('[data-testid="bg-next"]');
 const bgPackSelectEl = document.querySelector('[data-testid="bg-pack-select"]');
 const bgPackNoteEl = document.querySelector('[data-testid="bg-pack-note"]');
 const bgPackNoteDisplayEl = document.querySelector('[data-testid="bg-pack-note-display"]');
+const slideshowPositionEl = document.querySelector('[data-testid="slideshow-position"]');
+const slideshowSizeInputEl = document.querySelector('[data-testid="slideshow-size-input"]');
+const slideshowSizeApplyEl = document.querySelector('[data-testid="slideshow-size-apply"]');
+const slideshowOrderNoteEl = document.querySelector('[data-testid="slideshow-order-note"]');
 const settingsMenuToggleEl = document.querySelector('[data-testid="settings-menu-toggle"]');
 const settingsMenuPanelEl = document.querySelector('[data-testid="settings-menu-panel"]');
 const settingsMenuWrapEl = document.querySelector('[data-testid="settings-menu-wrap"]');
@@ -96,7 +102,11 @@ let activeTimer = null;
 let ownerToken = '';
 let embedMode = false;
 let activeBackgroundPack = DEFAULT_BACKGROUND_PACK;
-let activeBackgroundImages = BACKGROUND_PACKS[DEFAULT_BACKGROUND_PACK] || [];
+let backgroundPackImages = Array.isArray(BACKGROUND_PACKS[DEFAULT_BACKGROUND_PACK])
+  ? BACKGROUND_PACKS[DEFAULT_BACKGROUND_PACK]
+  : [];
+let activeBackgroundImages = backgroundPackImages.slice();
+let backgroundSetSize = 0;
 let activeColorTheme = DEFAULT_COLOR_THEME;
 let currentBackgroundIndex = 0;
 let serverTimeOffsetMs = 0;
@@ -280,6 +290,21 @@ function rememberBackgroundPack(packKey) {
   const normalized = String(packKey || '').trim();
   if (!normalized) return;
   writeStorageText(BACKGROUND_PACK_STORAGE_KEY, normalized);
+}
+
+function normalizePositiveInteger(value) {
+  const parsed = Number.parseInt(String(value || '').trim(), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function getStoredBackgroundSetSize() {
+  return normalizePositiveInteger(readStorageText(BACKGROUND_SLIDESHOW_LIMIT_STORAGE_KEY));
+}
+
+function rememberBackgroundSetSize(size) {
+  const normalized = normalizePositiveInteger(size);
+  if (!normalized) return;
+  writeStorageText(BACKGROUND_SLIDESHOW_LIMIT_STORAGE_KEY, String(normalized));
 }
 
 function setError(message) {
@@ -805,22 +830,119 @@ function availableBackgroundPool(packKey) {
   };
 }
 
-function setBackground(index) {
-  if (!backgroundEl || !activeBackgroundImages.length) return;
-  const safeIndex =
-    ((index % activeBackgroundImages.length) + activeBackgroundImages.length) % activeBackgroundImages.length;
+function effectiveBackgroundSetSize(requestedSize, packSize) {
+  const total = Number(packSize);
+  if (!Number.isFinite(total) || total <= 0) return 0;
+  const requested = normalizePositiveInteger(requestedSize);
+  if (!requested) return total;
+  return clamp(requested, 1, total);
+}
+
+function syncSlideshowSizeControls() {
+  const packSize = backgroundPackImages.length;
+  const hasImages = packSize > 0;
+  const effectiveSize = effectiveBackgroundSetSize(backgroundSetSize, packSize);
+
+  if (slideshowSizeInputEl) {
+    slideshowSizeInputEl.min = '1';
+    slideshowSizeInputEl.max = String(Math.max(1, packSize));
+    slideshowSizeInputEl.value = hasImages ? String(effectiveSize) : '';
+    slideshowSizeInputEl.disabled = !hasImages;
+  }
+
+  if (slideshowSizeApplyEl) {
+    slideshowSizeApplyEl.disabled = !hasImages;
+  }
+}
+
+function renderSlideshowOrderNote() {
+  if (!slideshowOrderNoteEl) return;
+  const packSize = backgroundPackImages.length;
+  if (!packSize) {
+    slideshowOrderNoteEl.textContent = 'This background pack has no images.';
+    return;
+  }
+
+  const setSize = activeBackgroundImages.length;
+  slideshowOrderNoteEl.textContent = `Order locked: first ${setSize} images from this pack.`;
+}
+
+function renderSlideshowPosition() {
+  const total = activeBackgroundImages.length;
+  if (slideshowPositionEl) {
+    slideshowPositionEl.textContent = total ? `Slide ${currentBackgroundIndex + 1} of ${total}` : 'No slides';
+  }
+  if (bgPrevEl) {
+    bgPrevEl.disabled = total <= 1 || currentBackgroundIndex <= 0;
+  }
+  if (bgNextEl) {
+    bgNextEl.disabled = total <= 1 || currentBackgroundIndex >= total - 1;
+  }
+}
+
+function setBackground(index, options = {}) {
+  const wrap = options.wrap !== false;
+  if (!backgroundEl || !activeBackgroundImages.length) {
+    if (backgroundEl) {
+      backgroundEl.style.backgroundImage = '';
+      delete backgroundEl.dataset.backgroundUrl;
+    }
+    currentBackgroundIndex = 0;
+    renderSlideshowPosition();
+    return;
+  }
+
+  const safeIndex = wrap
+    ? ((index % activeBackgroundImages.length) + activeBackgroundImages.length) % activeBackgroundImages.length
+    : clamp(index, 0, activeBackgroundImages.length - 1);
   const imageUrl = activeBackgroundImages[safeIndex];
   currentBackgroundIndex = safeIndex;
   backgroundEl.style.backgroundImage = `url("${imageUrl}")`;
   backgroundEl.dataset.backgroundUrl = imageUrl;
+  renderSlideshowPosition();
+}
+
+function applyBackgroundSetOrder(options = {}) {
+  const shouldPersist = options.persist !== false;
+  const resetIndex = options.resetIndex !== false;
+  const packSize = backgroundPackImages.length;
+  const nextSetSize = effectiveBackgroundSetSize(backgroundSetSize, packSize);
+  backgroundSetSize = nextSetSize;
+  activeBackgroundImages = backgroundPackImages.slice(0, nextSetSize);
+  if (resetIndex || currentBackgroundIndex >= activeBackgroundImages.length) {
+    currentBackgroundIndex = 0;
+  }
+
+  syncSlideshowSizeControls();
+  renderSlideshowOrderNote();
+  renderBackgroundPackNote();
+  setBackground(currentBackgroundIndex, { wrap: false });
+
+  if (shouldPersist && backgroundSetSize > 0) {
+    rememberBackgroundSetSize(backgroundSetSize);
+  }
+}
+
+function applyBackgroundSetSize(value, options = {}) {
+  backgroundSetSize = normalizePositiveInteger(value);
+  applyBackgroundSetOrder(options);
+}
+
+function showPreviousBackground() {
+  setBackground(currentBackgroundIndex - 1, { wrap: false });
+}
+
+function showNextBackground() {
+  setBackground(currentBackgroundIndex + 1, { wrap: false });
 }
 
 function renderBackgroundPackNote() {
   const option = backgroundPackOption(activeBackgroundPack);
-  const packSize = activeBackgroundImages.length;
+  const fullPackSize = backgroundPackImages.length;
+  const setSize = activeBackgroundImages.length;
   const label = option?.label || activeBackgroundPack || 'Backgrounds';
   const detail = option?.description || 'Background pack loaded.';
-  const text = `${label}: ${packSize}/${TOTAL_BACKGROUND_COUNT} images. ${detail}`;
+  const text = `${label}: showing ${setSize}/${fullPackSize} images (${TOTAL_BACKGROUND_COUNT} total). ${detail}`;
   if (bgPackNoteEl) bgPackNoteEl.textContent = text;
   if (bgPackNoteDisplayEl) bgPackNoteDisplayEl.textContent = text;
 }
@@ -843,21 +965,20 @@ function syncPackShortcutButtons() {
 }
 
 function setBackgroundPack(packKey, options = {}) {
-  const shouldPersist = options.persist !== false;
+  const shouldPersistPack = options.persist !== false;
+  const shouldPersistSetSize = options.persistSetSize !== false;
   const next = availableBackgroundPool(packKey);
   activeBackgroundPack = next.key;
-  activeBackgroundImages = next.images;
-  currentBackgroundIndex = 0;
+  backgroundPackImages = Array.isArray(next.images) ? next.images.slice() : [];
 
   if (bgPackSelectEl && bgPackSelectEl.value !== activeBackgroundPack) {
     bgPackSelectEl.value = activeBackgroundPack;
   }
 
-  renderBackgroundPackNote();
   syncPackShortcutButtons();
-  setBackground(0);
+  applyBackgroundSetOrder({ resetIndex: true, persist: shouldPersistSetSize });
 
-  if (shouldPersist) {
+  if (shouldPersistPack) {
     rememberBackgroundPack(activeBackgroundPack);
   }
 }
@@ -1360,9 +1481,19 @@ function setupEvents() {
   musicPauseEl?.addEventListener('click', pauseAmbient);
   volumeSliderEl?.addEventListener('input', syncAmbientVolume);
   volumeSliderEl?.addEventListener('change', syncAmbientVolume);
+  bgPrevEl?.addEventListener('click', showPreviousBackground);
   bgNextEl?.addEventListener('click', () => {
-    if (!IS_TEST_MODE) return;
-    rotateBackground();
+    showNextBackground();
+  });
+  slideshowSizeApplyEl?.addEventListener('click', () => {
+    applyBackgroundSetSize(slideshowSizeInputEl?.value || '');
+    setSettingsMenuOpen(false);
+  });
+  slideshowSizeInputEl?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    applyBackgroundSetSize(slideshowSizeInputEl?.value || '');
+    setSettingsMenuOpen(false);
   });
   bgPackSelectEl?.addEventListener('change', () => {
     setBackgroundPack(bgPackSelectEl.value);
@@ -1491,6 +1622,9 @@ function setupTestApi() {
     backgroundPack() {
       return activeBackgroundPack;
     },
+    backgroundSetSize() {
+      return backgroundSetSize;
+    },
     colorTheme() {
       return activeColorTheme;
     },
@@ -1498,10 +1632,6 @@ function setupTestApi() {
       return toPathAndSearch(urlValue);
     },
   };
-
-  if (bgNextEl) {
-    bgNextEl.hidden = false;
-  }
 }
 
 function initializeAudio() {
@@ -1523,8 +1653,9 @@ async function init() {
   setSettingsMenuOpen(false);
 
   hydrateBackgroundPackSelect();
+  backgroundSetSize = getStoredBackgroundSetSize();
   const initialPack = getStoredBackgroundPack() || DEFAULT_BACKGROUND_PACK;
-  setBackgroundPack(initialPack, { persist: false });
+  setBackgroundPack(initialPack, { persist: false, persistSetSize: false });
   updateUrlFields('');
   syncVisibilityControls();
   setTitleDisplay(titleInputEl?.value || 'Countdown');

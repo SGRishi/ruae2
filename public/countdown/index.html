@@ -9,7 +9,7 @@
       content="Create polished countdowns with scenery backdrops, progress tracking, and ambient audio."
     />
     <meta name="robots" content="noindex,nofollow" data-testid="robots-meta" />
-    <link rel="stylesheet" href="/countdown/countdown.css?v=20260305d" />
+    <link rel="stylesheet" href="/countdown/countdown.css?v=20260305e" />
   </head>
   <body class="countdown-page">
     <div class="countdown-background" data-testid="bg-image" aria-hidden="true"></div>
@@ -115,8 +115,33 @@
               </div>
             </div>
 
+            <div class="settings-group">
+              <p class="settings-group-label">Slideshow set</p>
+              <div class="slideshow-size-controls">
+                <label class="slideshow-size-label" for="slideshowSizeInput">Images in set</label>
+                <input
+                  id="slideshowSizeInput"
+                  data-testid="slideshow-size-input"
+                  type="number"
+                  inputmode="numeric"
+                  min="1"
+                  step="1"
+                />
+                <button type="button" class="slideshow-size-apply" data-testid="slideshow-size-apply">
+                  Set order
+                </button>
+              </div>
+              <p class="settings-menu-note" data-testid="slideshow-order-note" aria-live="polite"></p>
+            </div>
+
             <p class="settings-menu-note" data-testid="bg-pack-note-display" aria-live="polite"></p>
           </section>
+        </section>
+
+        <section class="slideshow-nav" data-testid="slideshow-nav" aria-label="Background slideshow controls">
+          <button type="button" class="slideshow-nav-button" data-testid="bg-prev">◀ Previous</button>
+          <p class="slideshow-position" data-testid="slideshow-position" aria-live="polite"></p>
+          <button type="button" class="slideshow-nav-button" data-testid="bg-next">Next ▶</button>
         </section>
 
         <section class="countdown-display" data-testid="countdown-display" role="timer" aria-live="polite">
@@ -307,8 +332,6 @@
           <p class="music-error" data-testid="music-error" hidden></p>
         </section>
 
-        <button type="button" class="test-control" data-testid="bg-next" hidden>Next background</button>
-
         <p class="error-message" data-testid="timer-error" hidden></p>
 
         <p class="credits" data-testid="credits">
@@ -323,7 +346,7 @@
     </main>
 
     <script src="/runtime-config.js?v=20260214"></script>
-    <script src="/countdown/background-packs.js?v=20260305d"></script>
-    <script src="/countdown/countdown.js?v=20260305d" type="module"></script>
+    <script src="/countdown/background-packs.js?v=20260305e"></script>
+    <script src="/countdown/countdown.js?v=20260305e" type="module"></script>
   </body>
 </html>
