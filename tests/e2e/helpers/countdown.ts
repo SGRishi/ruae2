@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { Page } from '@playwright/test';
+import { Page, Route } from '@playwright/test';
 
 const FIXTURE_1 = new URL('../../fixtures/scenery-1.png', import.meta.url);
 const FIXTURE_2 = new URL('../../fixtures/scenery-2.png', import.meta.url);
@@ -38,8 +38,7 @@ export async function installCountdownTestClock(
 export async function stubBackgroundImages(page: Page): Promise<void> {
   const [first, second] = await loadFixtures();
   let calls = 0;
-
-  await page.route('https://images.unsplash.com/**', async (route) => {
+  const respond = async (route: Route) => {
     const body = calls % 2 === 0 ? first : second;
     calls += 1;
     await route.fulfill({
@@ -50,7 +49,11 @@ export async function stubBackgroundImages(page: Page): Promise<void> {
         'cache-control': 'public, max-age=600',
       },
     });
-  });
+  };
+
+  await page.route('https://images.unsplash.com/**', respond);
+  await page.route('https://iso.500px.com/**', respond);
+  await page.route('https://drscdn.500px.org/**', respond);
 }
 
 function two(value: number): string {

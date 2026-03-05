@@ -17,8 +17,7 @@
 
     <main class="countdown-main" data-testid="countdown-main">
       <section class="countdown-shell">
-        <h1>Countdown</h1>
-        <p class="countdown-title" data-testid="countdown-title">Your countdown title appears here</p>
+        <h1 class="countdown-title" data-testid="countdown-title">Your countdown title appears here</h1>
         <p class="countdown-status" data-testid="countdown-status">Set a future UK date and time to begin.</p>
 
         <section class="countdown-display" data-testid="countdown-display" role="timer" aria-live="polite">
@@ -120,6 +119,13 @@
             </label>
           </fieldset>
 
+          <fieldset class="background-fieldset">
+            <legend>Background pack</legend>
+            <label for="backgroundPack">Theme pack</label>
+            <select id="backgroundPack" data-testid="bg-pack-select"></select>
+            <p class="background-pack-note" data-testid="bg-pack-note" aria-live="polite"></p>
+          </fieldset>
+
           <fieldset class="visibility-fieldset">
             <legend>Timer visibility</legend>
             <label class="inline-control" for="publicCheckbox">
@@ -209,6 +215,8 @@
         <p class="credits" data-testid="credits">
           Photos via
           <a href="https://unsplash.com/license" target="_blank" rel="noreferrer noopener">Unsplash</a>
+          and
+          <a href="https://500px.com" target="_blank" rel="noreferrer noopener">500px</a>
           · details in
           <a href="/countdown/CREDITS.md" target="_blank" rel="noreferrer noopener">CREDITS</a>
         </p>

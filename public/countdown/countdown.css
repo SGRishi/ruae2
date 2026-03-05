@@ -69,15 +69,6 @@ body.countdown-page {
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.28);
 }
 
-h1 {
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: clamp(1rem, 1.4vw + 0.8rem, 1.45rem);
-  color: var(--muted);
-  text-align: center;
-}
-
 .countdown-title {
   margin: 0;
   text-align: center;
@@ -237,6 +228,7 @@ h1 {
 }
 
 .units-fieldset,
+.background-fieldset,
 .visibility-fieldset {
   margin: 0;
   padding: 0.72rem;
@@ -244,6 +236,17 @@ h1 {
   border-radius: 0.55rem;
   display: grid;
   gap: 0.5rem;
+}
+
+.background-fieldset {
+  align-items: stretch;
+}
+
+.background-pack-note {
+  margin: 0;
+  min-height: 1.2em;
+  color: #c7dcf2;
+  font-size: 0.84rem;
 }
 
 .units-fieldset {
@@ -415,8 +418,7 @@ body.countdown-embed .credits,
 body.countdown-embed .error-message,
 body.countdown-embed .password-gate,
 body.countdown-embed .test-control,
-body.countdown-embed .resolve-row,
-body.countdown-embed h1 {
+body.countdown-embed .resolve-row {
   display: none;
 }
 
@@ -435,8 +437,7 @@ body.countdown-readonly .share-grid,
 body.countdown-readonly .actions-row,
 body.countdown-readonly .credits,
 body.countdown-readonly .test-control,
-body.countdown-readonly .resolve-row,
-body.countdown-readonly h1 {
+body.countdown-readonly .resolve-row {
   display: none;
 }
 

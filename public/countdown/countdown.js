@@ -1,3 +1,10 @@
+import {
+  BACKGROUND_PACK_OPTIONS,
+  BACKGROUND_PACKS,
+  DEFAULT_BACKGROUND_PACK,
+  TOTAL_BACKGROUND_COUNT,
+} from './background-packs.js';
+
 const IMAGE_ROTATION_INTERVAL_MS = 60_000;
 const TICK_INTERVAL_MS = 250;
 const OWNER_TOKEN_KEY = 'countdownOwnerTokens:v3';
@@ -7,25 +14,10 @@ const UNIT_ORDER = ['days', 'hours', 'minutes', 'seconds'];
 const TEST_CONFIG = typeof window !== 'undefined' ? window.__COUNTDOWN_TEST__ || null : null;
 const IS_TEST_MODE = Boolean(TEST_CONFIG);
 
-const BACKGROUND_IMAGES = [
-  'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=2600&q=80',
-  'https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=2600&q=80',
-  'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=2600&q=80',
-  'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2600&q=80',
-  'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=2600&q=80',
-  'https://images.unsplash.com/photo-1472396961693-142e6e269027?auto=format&fit=crop&w=2600&q=80',
-  'https://images.unsplash.com/photo-1439066615861-d1af74d74000?auto=format&fit=crop&w=2600&q=80',
-  'https://images.unsplash.com/photo-1482192596544-9eb780fc7f66?auto=format&fit=crop&w=2600&q=80',
-  'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=2600&q=80',
-  'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2600&q=80',
-  'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=2600&q=80',
-  'https://images.unsplash.com/photo-1518837695005-2083093ee35b?auto=format&fit=crop&w=2600&q=80',
-  'https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07?auto=format&fit=crop&w=2600&q=80',
-  'https://images.unsplash.com/photo-1418065460487-3e41a6c84dc5?auto=format&fit=crop&w=2600&q=80',
-];
-
 const backgroundEl = document.querySelector('[data-testid="bg-image"]');
 const bgNextEl = document.querySelector('[data-testid="bg-next"]');
+const bgPackSelectEl = document.querySelector('[data-testid="bg-pack-select"]');
+const bgPackNoteEl = document.querySelector('[data-testid="bg-pack-note"]');
 const formEl = document.querySelector('[data-testid="timer-form"]');
 const statusEl = document.querySelector('[data-testid="countdown-status"]');
 const errorEl = document.querySelector('[data-testid="timer-error"]');
@@ -84,6 +76,8 @@ const unitCardEls = {
 let activeTimer = null;
 let ownerToken = '';
 let embedMode = false;
+let activeBackgroundPack = DEFAULT_BACKGROUND_PACK;
+let activeBackgroundImages = BACKGROUND_PACKS[DEFAULT_BACKGROUND_PACK] || [];
 let currentBackgroundIndex = 0;
 let serverTimeOffsetMs = 0;
 let passwordGateVisible = false;
@@ -697,13 +691,76 @@ function renderCountdown() {
   }
 }
 
+function backgroundPackOption(packKey) {
+  return BACKGROUND_PACK_OPTIONS.find((option) => option.key === packKey) || null;
+}
+
+function availableBackgroundPool(packKey) {
+  const requested = String(packKey || '').trim();
+  if (requested && Array.isArray(BACKGROUND_PACKS[requested]) && BACKGROUND_PACKS[requested].length) {
+    return {
+      key: requested,
+      images: BACKGROUND_PACKS[requested],
+    };
+  }
+
+  if (Array.isArray(BACKGROUND_PACKS[DEFAULT_BACKGROUND_PACK]) && BACKGROUND_PACKS[DEFAULT_BACKGROUND_PACK].length) {
+    return {
+      key: DEFAULT_BACKGROUND_PACK,
+      images: BACKGROUND_PACKS[DEFAULT_BACKGROUND_PACK],
+    };
+  }
+
+  const fallbackKey = String(Object.keys(BACKGROUND_PACKS)[0] || '');
+  return {
+    key: fallbackKey,
+    images: Array.isArray(BACKGROUND_PACKS[fallbackKey]) ? BACKGROUND_PACKS[fallbackKey] : [],
+  };
+}
+
 function setBackground(index) {
-  if (!backgroundEl || !BACKGROUND_IMAGES.length) return;
-  const safeIndex = ((index % BACKGROUND_IMAGES.length) + BACKGROUND_IMAGES.length) % BACKGROUND_IMAGES.length;
-  const imageUrl = BACKGROUND_IMAGES[safeIndex];
+  if (!backgroundEl || !activeBackgroundImages.length) return;
+  const safeIndex =
+    ((index % activeBackgroundImages.length) + activeBackgroundImages.length) % activeBackgroundImages.length;
+  const imageUrl = activeBackgroundImages[safeIndex];
   currentBackgroundIndex = safeIndex;
   backgroundEl.style.backgroundImage = `url("${imageUrl}")`;
   backgroundEl.dataset.backgroundUrl = imageUrl;
+}
+
+function renderBackgroundPackNote() {
+  if (!bgPackNoteEl) return;
+  const option = backgroundPackOption(activeBackgroundPack);
+  const packSize = activeBackgroundImages.length;
+  const label = option?.label || activeBackgroundPack || 'Backgrounds';
+  const detail = option?.description || 'Background pack loaded.';
+  bgPackNoteEl.textContent = `${label}: ${packSize}/${TOTAL_BACKGROUND_COUNT} images. ${detail}`;
+}
+
+function setBackgroundPack(packKey) {
+  const next = availableBackgroundPool(packKey);
+  activeBackgroundPack = next.key;
+  activeBackgroundImages = next.images;
+  currentBackgroundIndex = 0;
+
+  if (bgPackSelectEl && bgPackSelectEl.value !== activeBackgroundPack) {
+    bgPackSelectEl.value = activeBackgroundPack;
+  }
+
+  renderBackgroundPackNote();
+  setBackground(0);
+}
+
+function hydrateBackgroundPackSelect() {
+  if (!bgPackSelectEl) return;
+  bgPackSelectEl.innerHTML = '';
+
+  for (const option of BACKGROUND_PACK_OPTIONS) {
+    const optEl = document.createElement('option');
+    optEl.value = option.key;
+    optEl.textContent = `${option.label} (${option.count})`;
+    bgPackSelectEl.append(optEl);
+  }
 }
 
 function rotateBackground() {
@@ -1196,6 +1253,9 @@ function setupEvents() {
     if (!IS_TEST_MODE) return;
     rotateBackground();
   });
+  bgPackSelectEl?.addEventListener('change', () => {
+    setBackgroundPack(bgPackSelectEl.value);
+  });
 
   titleInputEl?.addEventListener('input', () => {
     if (activeTimer) return;
@@ -1285,6 +1345,9 @@ function setupTestApi() {
     backgroundUrl() {
       return String(backgroundEl?.dataset?.backgroundUrl || '');
     },
+    backgroundPack() {
+      return activeBackgroundPack;
+    },
     countdownPath(urlValue) {
       return toPathAndSearch(urlValue);
     },
@@ -1309,7 +1372,8 @@ async function init() {
   }
   syncLayoutMode();
 
-  setBackground(currentBackgroundIndex);
+  hydrateBackgroundPackSelect();
+  setBackgroundPack(DEFAULT_BACKGROUND_PACK);
   updateUrlFields('');
   syncVisibilityControls();
   setTitleDisplay(titleInputEl?.value || 'Countdown');
