@@ -43,6 +43,11 @@ test.describe('public/private/embed urls', () => {
     const publicUrl = await page.getByTestId('public-url').inputValue();
     const embedUrl = await page.getByTestId('embed-url').inputValue();
 
+    await page.goto(toPathnameAndSearch(publicUrl), { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('timer-form')).toBeHidden();
+    await expect(page.getByTestId('music-play')).toBeVisible();
+    await expect(page.getByTestId('volume-slider')).toBeVisible();
+
     const mkContext = () => browser.newContext();
 
     const viewerA = await openIsolated(mkContext, toPathnameAndSearch(publicUrl));
@@ -101,6 +106,12 @@ test.describe('public/private/embed urls', () => {
 
     await expect(privateCreator.page.getByTestId('private-url')).toHaveValue(/\/countdown\//);
     const privateUrl = await privateCreator.page.getByTestId('private-url').inputValue();
+
+    await privateCreator.page.goto(toPathnameAndSearch(privateUrl), { waitUntil: 'domcontentloaded' });
+    await expect(privateCreator.page.getByTestId('timer-form')).toBeHidden();
+    await expect(privateCreator.page.getByTestId('music-play')).toBeVisible();
+    await expect(privateCreator.page.getByTestId('volume-slider')).toBeVisible();
+
     const privateViewer = await openIsolated(mkContext, toPathnameAndSearch(privateUrl));
 
     await expect(privateViewer.page.getByTestId('password-input')).toBeVisible();

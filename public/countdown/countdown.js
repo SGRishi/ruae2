@@ -297,7 +297,9 @@ function buildEmbedIframe(embedUrl) {
 }
 
 function syncLayoutMode() {
-  const readOnlyView = !embedMode && (passwordGateVisible || Boolean(activeTimer && !activeTimer.canEdit));
+  const linkedTimerRoute = Boolean(getRouteTimerId());
+  const readOnlyView =
+    !embedMode && (linkedTimerRoute || passwordGateVisible || Boolean(activeTimer && !activeTimer.canEdit));
   document.body.classList.toggle('countdown-readonly', readOnlyView);
 }
 
@@ -818,6 +820,8 @@ function applyTimer(timer, options = {}) {
     const method = options.replaceHistory ? 'replaceState' : 'pushState';
     window.history[method](null, '', buildHistoryUrl(activeTimer));
   }
+
+  syncLayoutMode();
 }
 
 async function initializeFromRoute() {
@@ -1093,6 +1097,7 @@ async function onFormSubmit(event) {
   applyTimer(data.timer, {
     replaceHistory: false,
     token: data.ownerToken,
+    updateHistory: false,
   });
   setStatus('Countdown created.');
   setError('');
@@ -1140,6 +1145,7 @@ async function onMakePublicButtonClick() {
   applyTimer(data.timer, {
     replaceHistory: true,
     token: ownerToken,
+    updateHistory: false,
   });
   setStatus(nextIsPublic ? 'Countdown is now public.' : 'Countdown is now private.');
   setError('');

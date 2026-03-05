@@ -434,11 +434,20 @@ body.countdown-readonly .timer-form,
 body.countdown-readonly .share-grid,
 body.countdown-readonly .actions-row,
 body.countdown-readonly .credits,
-body.countdown-readonly .error-message,
 body.countdown-readonly .test-control,
 body.countdown-readonly .resolve-row,
 body.countdown-readonly h1 {
   display: none;
+}
+
+body.countdown-readonly .countdown-main {
+  padding: 0.8rem;
+}
+
+body.countdown-readonly .countdown-shell {
+  width: min(44rem, 100%);
+  gap: 0.55rem;
+  padding: 0.7rem;
 }
 
 @media (max-width: 860px) {
