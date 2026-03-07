@@ -1,2 +1,1 @@
 /countdown /countdown/ 301
-/countdown/* /countdown/?id=:splat 302
