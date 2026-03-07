@@ -141,4 +141,31 @@ test.describe('public/private/embed urls', () => {
       privateViewer.context.close(),
     ]);
   });
+
+  test('repairs broken placeholder id links using same-origin legacy referrer', async ({ page }) => {
+    await page.goto('/countdown', { waitUntil: 'domcontentloaded' });
+    const nowMs = Date.now();
+
+    await createCountdown(page, {
+      title: 'Referrer repair timer',
+      endAtMs: nowMs + 2 * 60 * 60 * 1000,
+      mode: 'public',
+    });
+
+    await expect(page.getByTestId('public-url')).toHaveValue(/\/countdown\//);
+    const publicUrl = await page.getByTestId('public-url').inputValue();
+    const publicPath = toPathnameAndSearch(publicUrl);
+    const publicParsed = new URL(publicPath, 'http://127.0.0.1:3000');
+    const timerId = String(publicParsed.searchParams.get('id') || '').trim();
+    expect(timerId).not.toEqual('');
+
+    await page.goto('/countdown/?id=%3Aid', {
+      waitUntil: 'domcontentloaded',
+      referer: `http://127.0.0.1:3000/countdown/${timerId}`,
+    });
+
+    await expect(page.getByTestId('countdown-status')).toContainText(/public countdown is live/i);
+    await expect(page.getByTestId('timer-form')).toBeHidden();
+    await expect(page).toHaveURL(new RegExp(`/countdown/\\?id=${timerId}$`));
+  });
 });

@@ -236,6 +236,40 @@ function maybeRestoreFallbackRoute() {
   window.history.replaceState(null, '', rawRoute);
 }
 
+function maybeRecoverBrokenLegacyTimerId() {
+  const url = new URL(window.location.href);
+  const path = String(url.pathname || '');
+  const isCountdownRoot = path === '/countdown/index.html' || path === '/countdown/' || path === '/countdown';
+  if (!isCountdownRoot) return;
+
+  const rawId = String(url.searchParams.get('id') || '').trim();
+  if (!rawId || !rawId.startsWith(':')) return;
+
+  const rawReferrer = String(document.referrer || '').trim();
+  if (!rawReferrer) return;
+
+  let referrerUrl;
+  try {
+    referrerUrl = new URL(rawReferrer);
+  } catch {
+    return;
+  }
+
+  if (referrerUrl.origin !== window.location.origin) return;
+
+  const parts = String(referrerUrl.pathname || '')
+    .split('/')
+    .filter(Boolean);
+  if (parts.length !== 2 || parts[0] !== 'countdown') return;
+
+  const recoveredId = normalizeTimerId(parts[1]);
+  if (!recoveredId) return;
+
+  url.pathname = '/countdown/';
+  url.searchParams.set('id', recoveredId);
+  window.history.replaceState(null, '', `${url.pathname}${url.search}`);
+}
+
 function setRobots(isPublic) {
   if (!robotsMetaEl) return;
   robotsMetaEl.setAttribute('content', isPublic ? 'index,follow' : 'noindex,nofollow');
@@ -1769,6 +1803,7 @@ function initializeAudio() {
 
 async function init() {
   maybeRestoreFallbackRoute();
+  maybeRecoverBrokenLegacyTimerId();
   embedMode = isEmbedMode();
   if (embedMode) {
     document.body.classList.add('countdown-embed');
