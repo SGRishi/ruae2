@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const rootPage = await readFile(new URL('../../public/index.html', import.meta.url), 'utf8');
-const countdownPage = await readFile(new URL('../../public/countdown/index.html', import.meta.url), 'utf8');
+const countdownPage = await readFile(
+  new URL('../../public/countdown/index.html', import.meta.url),
+  'utf8'
+);
 
 test('root page is the countdown app', async () => {
   assert.match(rootPage, /data-testid="countdown-main"/i);

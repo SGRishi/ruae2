@@ -1,10 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  createApiHandler,
-  createMemoryCountdownStore,
-  __test,
-} from '../../worker.js';
+import { createApiHandler, createMemoryCountdownStore, __test } from '../../worker.js';
 
 function getSetCookies(response) {
   if (typeof response.headers.getSetCookie === 'function') {

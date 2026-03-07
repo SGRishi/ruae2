@@ -52,9 +52,7 @@ test('resolve-date API uses Responses web_search and returns explicit source URL
   });
 
   const response = await handler.fetch(
-    createApiRequest(
-      '/api/resolve-date?q=London%20marathon%20start%20date&timezone=Europe/London'
-    ),
+    createApiRequest('/api/resolve-date?q=London%20marathon%20start%20date&timezone=Europe/London'),
     {
       OPENAI_API_KEY: 'test-openai-key',
     }

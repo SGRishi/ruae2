@@ -46,7 +46,10 @@ test('frontend build outputs countdown-only site and cleans removed pages', asyn
   assert.doesNotMatch(distIndex, /href="\/ruae\b/i);
   assert.doesNotMatch(distIndex, /href="\/maths\b/i);
 
-  const distCountdownCss = await readFile(path.join(repoRoot, 'dist', 'countdown', 'countdown.css'), 'utf8');
+  const distCountdownCss = await readFile(
+    path.join(repoRoot, 'dist', 'countdown', 'countdown.css'),
+    'utf8'
+  );
   assert.ok(distCountdownCss.length > 200, 'dist/countdown/countdown.css should exist');
 
   await assertMissing('home.css');
