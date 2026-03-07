@@ -45,7 +45,7 @@ Validate production countdown flow for:
 
 6. Legacy routes are disabled
 
-- Open `/maths`, `/ruae`, `/login`, and `/admin`.
+- Open non-countdown paths (for example `/legacy`, `/old-route`, `/unused-path`).
 - Expect `404` for all routes.
 
 7. CORS enforcement

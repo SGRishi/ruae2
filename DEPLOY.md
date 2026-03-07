@@ -13,7 +13,7 @@ For non-interactive CI, set `CLOUDFLARE_API_TOKEN` with least-privilege scopes d
 2. Ensure D1 schema is applied:
 
 ```bash
-npx wrangler d1 execute ruae-members-db --file d1/schema.sql
+npx wrangler d1 execute countdown-db --file d1/schema.sql
 ```
 
 3. Set Worker secrets:

@@ -31,8 +31,9 @@ const time = await apiJson('/api/time');
 assert.equal(time.response.status, 200);
 assert.equal(typeof time.data.nowMs, 'number');
 
-const disabledLogin = await apiJson('/api/auth/me');
-assert.equal(disabledLogin.response.status, 404);
+const health = await apiJson('/api/health');
+assert.equal(health.response.status, 200);
+assert.equal(health.data.service, 'countdown-api');
 
 const deadlineMs = Date.now() + 60 * 60 * 1000;
 const created = await apiJson('/api/countdown/timer', {

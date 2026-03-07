@@ -8,8 +8,8 @@ ORIGIN="$(node -e "process.stdout.write(new URL(process.argv[1]).origin)" "$BASE
 tmp_dir="$(mktemp -d)"
 home_body="${tmp_dir}/home.body"
 health_body="${tmp_dir}/health.body"
-me_body="${tmp_dir}/me.body"
-cookie_jar="${tmp_dir}/cookies.txt"
+time_body="${tmp_dir}/time.body"
+legacy_body="${tmp_dir}/legacy.body"
 
 cleanup() {
   rm -rf "${tmp_dir}"
@@ -31,43 +31,42 @@ printf 'Smoke target: BASE_URL=%s API_BASE=%s\n' "${BASE_URL}" "${API_BASE}"
 home_status="$(curl -sS -o "${home_body}" -w '%{http_code}' "${BASE_URL}/")"
 require_status "${home_status}" "200" "homepage"
 if command -v rg >/dev/null 2>&1; then
-  if ! rg -qi "ruae|higher english" "${home_body}"; then
-    printf 'FAIL: homepage content check did not find expected RUAE text\n' >&2
+  rg -qi 'countdown' "${home_body}" || {
+    printf 'FAIL: homepage does not contain countdown UI\n' >&2
     exit 1
-  fi
+  }
 else
-  if ! grep -Eqi "ruae|higher english" "${home_body}"; then
-    printf 'FAIL: homepage content check did not find expected RUAE text\n' >&2
+  grep -Eqi 'countdown' "${home_body}" || {
+    printf 'FAIL: homepage does not contain countdown UI\n' >&2
     exit 1
-  fi
+  }
 fi
-printf 'PASS: homepage reachable with expected content\n'
+printf 'PASS: homepage countdown UI reachable\n'
 
 health_status="$(curl -sS -H "Origin: ${ORIGIN}" -o "${health_body}" -w '%{http_code}' "${API_BASE}/api/health")"
 require_status "${health_status}" "200" "api health"
 node -e '
 const fs = require("fs");
 const payload = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-if (!payload || payload.ok !== true || payload.service !== "ruae-api") {
+if (!payload || payload.ok !== true || payload.service !== "countdown-api") {
   throw new Error("unexpected health payload");
 }
 ' "${health_body}"
 printf 'PASS: /api/health payload validated\n'
 
-me_status="$(
-  curl -sS -c "${cookie_jar}" -b "${cookie_jar}" \
-    -H "Origin: ${ORIGIN}" \
-    -o "${me_body}" -w '%{http_code}' \
-    "${API_BASE}/api/auth/me"
-)"
-require_status "${me_status}" "200" "api auth me"
+time_status="$(curl -sS -H "Origin: ${ORIGIN}" -o "${time_body}" -w '%{http_code}' "${API_BASE}/api/time")"
+require_status "${time_status}" "200" "api time"
 node -e '
 const fs = require("fs");
 const payload = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-if (!payload || payload.ok !== true || typeof payload.csrfToken !== "string" || !payload.csrfToken) {
-  throw new Error("unexpected /api/auth/me payload");
+if (!payload || payload.ok !== true || typeof payload.nowMs !== "number") {
+  throw new Error("unexpected /api/time payload");
 }
-' "${me_body}"
-printf 'PASS: /api/auth/me payload validated\n'
+' "${time_body}"
+printf 'PASS: /api/time payload validated\n'
+
+legacy_status="$(curl -sS -o "${legacy_body}" -w '%{http_code}' "${BASE_URL}/legacy-route")"
+require_status "${legacy_status}" "404" "legacy route"
+printf 'PASS: legacy routes disabled\n'
 
 printf 'Smoke test completed successfully.\n'

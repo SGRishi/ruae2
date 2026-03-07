@@ -26,10 +26,10 @@ if (typeof realFetch === 'function') {
 
     if (url === 'https://api.openai.com/v1/responses') {
       const headers = new Headers(init?.headers || (input && input.headers) || {});
-      const auth = String(headers.get('Authorization') || '');
+      const authHeader = String(headers.get('Authorization') || '');
       const expected = `Bearer ${String(env.OPENAI_API_KEY || '')}`;
 
-      if (!expected || auth !== expected) {
+      if (!expected || authHeader !== expected) {
         return new Response(
           JSON.stringify({ error: { message: 'QA stub: missing/invalid OpenAI API key.' } }),
           { status: 401, headers: { 'Content-Type': 'application/json; charset=utf-8' } }

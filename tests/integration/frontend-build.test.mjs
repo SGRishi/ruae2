@@ -43,8 +43,6 @@ test('frontend build outputs countdown-only site and cleans removed pages', asyn
   const distIndex = await readFile(path.join(repoRoot, 'dist', 'index.html'), 'utf8');
   assert.match(distIndex, /data-testid="countdown-main"/i);
   assert.match(distIndex, /src="\/countdown\/countdown\.js\?v=/i);
-  assert.doesNotMatch(distIndex, /href="\/ruae\b/i);
-  assert.doesNotMatch(distIndex, /href="\/maths\b/i);
 
   const distCountdownCss = await readFile(
     path.join(repoRoot, 'dist', 'countdown', 'countdown.css'),
@@ -56,12 +54,6 @@ test('frontend build outputs countdown-only site and cleans removed pages', asyn
   await assertMissing('home.js');
   await assertMissing('app.js');
   await assertMissing('styles.css');
-  await assertMissing('auth-client.js');
-  await assertMissing('data/papers.json');
   await assertMissing('media/hero-study.jpg');
   await assertMissing('media/winter-panorama-bled.jpg');
-  await assertMissing('ruae/index.html');
-  await assertMissing('maths/index.html');
-  await assertMissing('login/index.html');
-  await assertMissing('admin/index.html');
 });

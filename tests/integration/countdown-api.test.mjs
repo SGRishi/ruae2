@@ -74,7 +74,7 @@ function buildCountdownEnv() {
   };
 }
 
-test('countdown API: public timers are readable without auth and expose start/end timestamps', async () => {
+test('countdown API: public timers are readable without owner token and expose start/end timestamps', async () => {
   const fixedNow = Date.UTC(2026, 0, 1, 12, 0, 0);
   const handler = createApiHandler({ now: () => fixedNow });
   const env = buildCountdownEnv();

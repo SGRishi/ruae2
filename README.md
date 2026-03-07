@@ -35,7 +35,7 @@ Production deployment targets:
 - `/api/countdown/timer`: create/read/update countdown timers
 - `/api/countdown/access`: private countdown access token flow
 
-Legacy non-countdown routes such as `/maths`, `/ruae`, `/login`, and `/admin` are intentionally removed and return `404`.
+Legacy non-countdown routes are intentionally removed and return `404`.
 
 ## Setup
 

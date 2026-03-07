@@ -7,7 +7,6 @@ export default [
       'dist/**',
       'node_modules/**',
       '.wrangler/**',
-      'public/maths/vendor/**',
       'test-results/**',
       'playwright-report/**',
     ],
@@ -50,16 +49,6 @@ export default [
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'script',
-      globals: {
-        ...globals.browser,
-      },
-    },
-  },
-  {
-    files: ['public/maths/maths.js'],
-    languageOptions: {
-      ecmaVersion: 'latest',
-      sourceType: 'module',
       globals: {
         ...globals.browser,
       },

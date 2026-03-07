@@ -1,11 +1,9 @@
-# Maths App Spec (Non-Negotiable)
+# Countdown App Spec (Non-Negotiable)
 
-- App lives under /maths and all routes work on direct load
-- API lives under /api/maths/*
-- /maths and /api/maths/* protected by existing login + approval rules
-- Year and Paper dropdowns exist and sync to URL query params (?year=YYYY&paper=1|2)
-- Keyboard shortcuts: D datasheet, A show answer, Left/Right prev/next, R review mode, / focus search
-- Cropped PNGs always load (served via API)
-- Footer on every /maths page:
-  contact: rishi@rishisubjects.co.uk for suggestions.
-
+- App lives at `/` and `/countdown/`.
+- Countdown API lives under `/api/countdown/*`.
+- Legacy non-countdown paths are disabled (`404`).
+- Users can create public and private countdowns.
+- Private countdowns require password unlock for viewers.
+- Shared links and embed links work without breaking timer rendering.
+- Resolver can populate dates from `/api/resolve-date` when configured.

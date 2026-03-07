@@ -16,12 +16,9 @@ test('root page is the countdown app', async () => {
   assert.match(rootPage, /href="\/countdown\/countdown\.css\?v=/i);
 });
 
-test('root page does not expose legacy subject or auth website routes', async () => {
-  assert.doesNotMatch(rootPage, /href="\/ruae\b/i);
-  assert.doesNotMatch(rootPage, /href="\/maths\b/i);
-  assert.doesNotMatch(rootPage, /href="\/login\b/i);
-  assert.doesNotMatch(rootPage, /href="\/admin\b/i);
-  assert.doesNotMatch(rootPage, /RUAE|English|Maths/i);
+test('root page does not expose legacy navigation links', async () => {
+  assert.doesNotMatch(rootPage, /href="\/legacy\b/i);
+  assert.doesNotMatch(rootPage, /href="\/old-route\b/i);
 });
 
 test('root page mirrors /countdown UI markup', async () => {

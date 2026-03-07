@@ -39,9 +39,8 @@ async function run() {
   await cp(publicDir, distDir, { recursive: true });
 
   const apiBase = resolveApiBase();
-  // Only set API_BASE when explicitly configured. When omitted, the auth client
-  // falls back to its production default (https://api.rishisubjects.co.uk) on
-  // non-local hosts.
+  // Only set API_BASE when explicitly configured. When omitted, the countdown
+  // client falls back to its production API on non-local hosts.
   const runtimeConfig = `window.__APP_CONFIG__ = window.__APP_CONFIG__ || {};\n${
     apiBase ? `window.__APP_CONFIG__.API_BASE = ${JSON.stringify(apiBase)};\n` : ''
   }`;
