@@ -21,27 +21,16 @@ npx wrangler d1 execute ruae-members-db --file d1/schema.sql
 ```bash
 npx wrangler secret put SESSION_SECRET
 npx wrangler secret put PASSWORD_PEPPER
-npx wrangler secret put ADMIN_LINK_TOKEN
 npx wrangler secret put OPENAI_API_KEY
 ```
 
-4. (Maths) Ensure KV storage exists for PDF + crop assets:
-
-- Create a KV namespace (one-time):
-
-```bash
-npx wrangler kv namespace create MATHS_ASSETS
-```
-
-- Add the resulting `[[kv_namespaces]]` binding to `wrangler.toml` as `binding = "MATHS_ASSETS"`.
-
-5. Deploy Worker:
+4. Deploy Worker:
 
 ```bash
 npx wrangler deploy
 ```
 
-6. Confirm endpoints:
+5. Confirm endpoints:
 
 ```bash
 curl -i https://<your-worker>.workers.dev/api/health
@@ -71,30 +60,6 @@ npm run build
 npx wrangler pages deploy dist --project-name rishisubjects
 ```
 
-## 2b) Publish Maths Data (Optional but Required for /maths Content)
-
-The `/maths/` UI reads from D1 + KV. To populate it:
-
-1. Install Python deps:
-
-```bash
-python3 -m venv .venv
-./.venv/bin/pip install -r maths/requirements.txt
-```
-
-2. Ingest + segment PDFs locally (idempotent):
-
-```bash
-./.venv/bin/python -m maths ingest <folder>
-./.venv/bin/python -m maths segment
-```
-
-3. Publish to production:
-
-```bash
-./.venv/bin/python -m maths publish
-```
-
 ## 3) Configure Domains
 
 - Pages custom domain: `rishisubjects.co.uk`
@@ -109,23 +74,16 @@ Configure Worker vars in Cloudflare dashboard or wrangler:
 
 - `ALLOWED_ORIGINS=https://rishisubjects.co.uk`
 - `PAGES_PROJECT_NAME=rishisubjects`
-- `REQUIRE_MANUAL_APPROVAL=true`
 - `ALLOW_LOCALHOST_ORIGINS=true` (optional for local testing)
-
-Admin route:
-
-- `https://rishisubjects.co.uk/admin/#token=<ADMIN_LINK_TOKEN>`
-- Keep this URL private; it grants admin review/approve/deny access.
 
 ## 5) Post-Deploy Smoke Checks
 
 1. `GET /api/health` is `200`.
-2. Open `https://rishisubjects.co.uk/login/`.
-3. Register new user.
-4. Login succeeds and redirects to `/ruae/`.
-5. `GET /api/auth/me` returns `authenticated: true`.
-6. `GET /api/protected/example` returns `200`.
-7. Logout clears session and protected endpoint returns `401`.
+2. Open `https://rishisubjects.co.uk/countdown/`.
+3. Create a public countdown and open its generated share link in a private window.
+4. Create a private countdown and verify password-protected access works.
+5. `GET /api/time` returns `200`.
+6. `GET /api/countdown/timer` rejects malformed requests with `400`.
 
 Automated smoke test:
 
