@@ -1,1 +1,2 @@
 /countdown /countdown/ 301
+/countdown/:id /countdown/?id=:id 302
