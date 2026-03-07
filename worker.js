@@ -552,7 +552,7 @@ class DuplicateRecordError extends Error {
   }
 }
 
-function createD1Store(db) {
+function _createD1Store(db) {
   if (!db || typeof db.prepare !== 'function') {
     throw new Error('DB binding is missing or invalid.');
   }
@@ -1627,7 +1627,7 @@ function mathsCropUrlById(cropId) {
   return `/api/maths/crops/${encodeURIComponent(id)}.png`;
 }
 
-function createMathsD1Store(db) {
+function _createMathsD1Store(db) {
   if (!db || typeof db.prepare !== 'function') {
     throw new Error('DB binding is missing or invalid.');
   }
@@ -3367,7 +3367,7 @@ async function handleCountdownAccess(request, env, countdownStore, url, nowMs, n
   );
 }
 
-async function handleAuthMe(request, env, store, url, nowSeconds) {
+async function _handleAuthMe(request, env, store, url, nowSeconds) {
   await store.deleteExpiredSessions(nowSeconds);
 
   const csrfState = getOrCreateCsrfToken(request);
@@ -3399,7 +3399,7 @@ async function handleAuthMe(request, env, store, url, nowSeconds) {
   );
 }
 
-async function handleAuthRegister(request, env, store, url, nowSeconds) {
+async function _handleAuthRegister(request, env, store, url, nowSeconds) {
   if (request.method !== 'POST') {
     return methodNotAllowed(request, env, ['POST']);
   }
@@ -3520,7 +3520,7 @@ async function handleAuthRegister(request, env, store, url, nowSeconds) {
   }
 }
 
-async function handleAuthLogin(request, env, store, url, nowSeconds) {
+async function _handleAuthLogin(request, env, store, url, nowSeconds) {
   if (request.method !== 'POST') {
     return methodNotAllowed(request, env, ['POST']);
   }
@@ -3661,7 +3661,7 @@ async function handleAuthLogin(request, env, store, url, nowSeconds) {
   );
 }
 
-async function handleAuthLogout(request, env, store, url, nowSeconds) {
+async function _handleAuthLogout(request, env, store, url, nowSeconds) {
   if (request.method !== 'POST') {
     return methodNotAllowed(request, env, ['POST']);
   }
@@ -3711,7 +3711,7 @@ async function handleAuthLogout(request, env, store, url, nowSeconds) {
   );
 }
 
-async function handleProtectedExample(request, env, store, url, nowSeconds) {
+async function _handleProtectedExample(request, env, store, url, nowSeconds) {
   if (request.method !== 'GET') {
     return methodNotAllowed(request, env, ['GET']);
   }
@@ -3744,7 +3744,7 @@ async function handleProtectedExample(request, env, store, url, nowSeconds) {
   });
 }
 
-async function handleMatch(request, env, store, url, nowSeconds) {
+async function _handleMatch(request, env, store, url, nowSeconds) {
   if (request.method !== 'POST') {
     return methodNotAllowed(request, env, ['POST']);
   }
@@ -3807,7 +3807,7 @@ async function handleMatch(request, env, store, url, nowSeconds) {
   return jsonResponse(request, env, aiResult.body, aiResult.status);
 }
 
-async function handleAdminReview(request, env, store, url) {
+async function _handleAdminReview(request, env, store, url) {
   if (request.method !== 'GET') {
     return methodNotAllowed(request, env, ['GET']);
   }
@@ -3840,7 +3840,7 @@ async function handleAdminReview(request, env, store, url) {
   });
 }
 
-async function handleAdminApprove(request, env, store, url) {
+async function _handleAdminApprove(request, env, store, url) {
   if (request.method !== 'POST') {
     return methodNotAllowed(request, env, ['POST']);
   }
@@ -3876,7 +3876,7 @@ async function handleAdminApprove(request, env, store, url) {
   });
 }
 
-async function handleAdminDeny(request, env, store, url) {
+async function _handleAdminDeny(request, env, store, url) {
   if (request.method !== 'POST') {
     return methodNotAllowed(request, env, ['POST']);
   }
@@ -3919,7 +3919,7 @@ async function handleAdminDeny(request, env, store, url) {
   });
 }
 
-async function handleAdminDenyAllPending(request, env, store, url) {
+async function _handleAdminDenyAllPending(request, env, store, url) {
   if (request.method !== 'POST') {
     return methodNotAllowed(request, env, ['POST']);
   }
@@ -3953,7 +3953,7 @@ async function handleAdminDenyAllPending(request, env, store, url) {
   });
 }
 
-async function handleAdminClearDenied(request, env, store, url) {
+async function _handleAdminClearDenied(request, env, store, url) {
   if (request.method !== 'POST') {
     return methodNotAllowed(request, env, ['POST']);
   }
@@ -3984,7 +3984,7 @@ function contentTypeForKey(key) {
   return 'application/octet-stream';
 }
 
-async function handleMathsYears(request, env, authStore, mathsStore, nowSeconds) {
+async function _handleMathsYears(request, env, authStore, mathsStore, nowSeconds) {
   if (request.method !== 'GET') {
     return methodNotAllowed(request, env, ['GET']);
   }
@@ -4000,7 +4000,7 @@ async function handleMathsYears(request, env, authStore, mathsStore, nowSeconds)
   return jsonResponse(request, env, { ok: true, years }, 200);
 }
 
-async function handleMathsFiles(request, env, authStore, mathsStore, url, nowSeconds) {
+async function _handleMathsFiles(request, env, authStore, mathsStore, url, nowSeconds) {
   if (request.method !== 'GET') {
     return methodNotAllowed(request, env, ['GET']);
   }
@@ -4020,7 +4020,7 @@ async function handleMathsFiles(request, env, authStore, mathsStore, url, nowSec
   return jsonResponse(request, env, { ok: true, files }, 200);
 }
 
-async function handleMathsFile(request, env, authStore, mathsStore, url, nowSeconds) {
+async function _handleMathsFile(request, env, authStore, mathsStore, url, nowSeconds) {
   if (request.method !== 'GET') {
     return methodNotAllowed(request, env, ['GET']);
   }
@@ -4045,7 +4045,7 @@ async function handleMathsFile(request, env, authStore, mathsStore, url, nowSeco
   return jsonResponse(request, env, { ok: true, file }, 200);
 }
 
-async function handleMathsQuestions(request, env, authStore, mathsStore, url, nowSeconds) {
+async function _handleMathsQuestions(request, env, authStore, mathsStore, url, nowSeconds) {
   if (request.method !== 'GET') {
     return methodNotAllowed(request, env, ['GET']);
   }
@@ -4071,7 +4071,7 @@ async function handleMathsQuestions(request, env, authStore, mathsStore, url, no
   return jsonResponse(request, env, { ok: true, questions }, 200);
 }
 
-async function handleMathsQuestion(request, env, authStore, mathsStore, url, nowSeconds) {
+async function _handleMathsQuestion(request, env, authStore, mathsStore, url, nowSeconds) {
   if (request.method !== 'GET') {
     return methodNotAllowed(request, env, ['GET']);
   }
@@ -4096,7 +4096,7 @@ async function handleMathsQuestion(request, env, authStore, mathsStore, url, now
   return jsonResponse(request, env, { ok: true, question }, 200);
 }
 
-async function handleMathsDatasheet(request, env, authStore, mathsStore, url, nowSeconds) {
+async function _handleMathsDatasheet(request, env, authStore, mathsStore, url, nowSeconds) {
   if (request.method !== 'GET') {
     return methodNotAllowed(request, env, ['GET']);
   }
@@ -4120,7 +4120,7 @@ async function handleMathsDatasheet(request, env, authStore, mathsStore, url, no
   );
 }
 
-async function handleMathsDiagnostics(request, env, authStore, mathsStore, nowSeconds) {
+async function _handleMathsDiagnostics(request, env, authStore, mathsStore, nowSeconds) {
   if (request.method !== 'GET') {
     return methodNotAllowed(request, env, ['GET']);
   }
@@ -4136,7 +4136,7 @@ async function handleMathsDiagnostics(request, env, authStore, mathsStore, nowSe
   return jsonResponse(request, env, { ok: true, ...diagnostics }, 200);
 }
 
-async function handleMathsReviewSave(request, env, authStore, mathsStore, url, nowSeconds) {
+async function _handleMathsReviewSave(request, env, authStore, mathsStore, url, nowSeconds) {
   if (request.method !== 'POST') {
     return methodNotAllowed(request, env, ['POST']);
   }
@@ -4313,7 +4313,7 @@ async function handleMathsReviewSave(request, env, authStore, mathsStore, url, n
   });
 }
 
-function parseMathsCropIdFromPath(pathname) {
+function _parseMathsCropIdFromPath(pathname) {
   const path = String(pathname || '');
   const prefix = '/api/maths/crops/';
   if (!path.startsWith(prefix) || !path.endsWith('.png')) return null;
@@ -4329,7 +4329,7 @@ function parseMathsCropIdFromPath(pathname) {
   }
 }
 
-async function handleMathsCropPng(request, env, authStore, mathsStore, cropId, nowSeconds) {
+async function _handleMathsCropPng(request, env, authStore, mathsStore, cropId, nowSeconds) {
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     return methodNotAllowed(request, env, ['GET', 'HEAD']);
   }
@@ -4395,7 +4395,7 @@ async function handleMathsCropPng(request, env, authStore, mathsStore, cropId, n
   return new Response(isHead ? null : result.value, { status: 200, headers });
 }
 
-async function handleMathsBlob(request, env, authStore, url, nowSeconds) {
+async function _handleMathsBlob(request, env, authStore, url, nowSeconds) {
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     return methodNotAllowed(request, env, ['GET', 'HEAD']);
   }
