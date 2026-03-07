@@ -1,2 +1,1 @@
 /countdown /countdown/ 301
-/countdown/:timerId /countdown/?id=:timerId 302
