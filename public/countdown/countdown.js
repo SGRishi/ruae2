@@ -208,6 +208,9 @@ function getNowMs() {
 }
 
 function getRouteTimerId() {
+  const fromQuery = normalizeTimerId(new URL(window.location.href).searchParams.get('id'));
+  if (fromQuery) return fromQuery;
+
   const parts = window.location.pathname.split('/').filter(Boolean);
   if (!parts.length || parts[0] !== 'countdown') return '';
   return normalizeTimerId(parts[1]);
@@ -383,7 +386,9 @@ function setMusicError(message) {
 }
 
 function timerPath(timerId) {
-  return `/countdown/${encodeURIComponent(timerId)}`;
+  const id = normalizeTimerId(timerId);
+  if (!id) return '/countdown/';
+  return `/countdown/?id=${encodeURIComponent(id)}`;
 }
 
 function toPublicUrl(timerId) {
@@ -438,7 +443,12 @@ function updateUrlFields(timerOrId) {
 
   const publicUrl = toPublicUrl(timerId);
   const privateUrl = toPrivateUrl(timerId);
-  const embedUrl = timer ? toEmbedUrl(timer) : `${publicUrl}?embed=1`;
+  const embedUrl = (() => {
+    if (timer) return toEmbedUrl(timer);
+    const url = new URL(publicUrl);
+    url.searchParams.set('embed', '1');
+    return url.toString();
+  })();
   const embedCode = buildEmbedIframe(embedUrl);
 
   if (publicUrlEl) publicUrlEl.value = publicUrl;
@@ -511,7 +521,7 @@ function normalizeTimer(timer) {
 
 function buildHistoryUrl(timer) {
   if (!timer || !timer.id) return '/countdown/';
-  const url = new URL(`${window.location.origin}${timerPath(timer.id)}`);
+  const url = new URL(toPublicUrl(timer.id));
   if (!timer.isPublic) {
     url.searchParams.set('private', '1');
   }
