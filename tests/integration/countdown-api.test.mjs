@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createApiHandler,
-  createMemoryStore,
   createMemoryCountdownStore,
   __test,
 } from '../../worker.js';
@@ -75,7 +74,6 @@ function buildCountdownEnv() {
     SESSION_SECRET: 'test-session-secret',
     PASSWORD_PEPPER: 'test-pepper',
     ALLOWED_ORIGINS: 'https://rishisubjects.co.uk',
-    AUTH_STORE: createMemoryStore(),
     COUNTDOWN_STORE: createMemoryCountdownStore(),
   };
 }

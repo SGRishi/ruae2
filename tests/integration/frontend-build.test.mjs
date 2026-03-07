@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFile, stat } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -22,22 +22,43 @@ function runBuild() {
   assert.equal(result.status, 0, 'frontend build should succeed');
 }
 
-test('frontend build output includes new homepage layout and the root datasheet PDF', async () => {
-  // The CI pipeline runs `npm run build` in a separate step, but we validate the
-  // build output here so `npm test` catches missing assets immediately.
+async function assertMissing(relativePath) {
+  const fullPath = path.join(repoRoot, 'dist', relativePath);
+  await assert.rejects(
+    stat(fullPath),
+    (error) => error && error.code === 'ENOENT',
+    `expected ${relativePath} to be removed from dist/`
+  );
+}
+
+test('frontend build outputs countdown-only site and cleans removed pages', async () => {
+  await mkdir(path.join(repoRoot, 'dist'), { recursive: true });
+  const stalePath = path.join(repoRoot, 'dist', 'stale-legacy-file.txt');
+  await writeFile(stalePath, 'stale', 'utf8');
+
   runBuild();
 
+  await assertMissing('stale-legacy-file.txt');
+
   const distIndex = await readFile(path.join(repoRoot, 'dist', 'index.html'), 'utf8');
-  assert.match(distIndex, /<header\s+class="nav"/i);
-  assert.match(distIndex, /<section\s+class="hero"/i);
-  assert.match(distIndex, /href="\/home\.css\b/i);
+  assert.match(distIndex, /data-testid="countdown-main"/i);
+  assert.match(distIndex, /src="\/countdown\/countdown\.js\?v=/i);
+  assert.doesNotMatch(distIndex, /href="\/ruae\b/i);
+  assert.doesNotMatch(distIndex, /href="\/maths\b/i);
 
-  const distCss = await readFile(path.join(repoRoot, 'dist', 'home.css'), 'utf8');
-  assert.ok(distCss.length > 200, 'dist/home.css should exist');
+  const distCountdownCss = await readFile(path.join(repoRoot, 'dist', 'countdown', 'countdown.css'), 'utf8');
+  assert.ok(distCountdownCss.length > 200, 'dist/countdown/countdown.css should exist');
 
-  const distHero = await stat(path.join(repoRoot, 'dist', 'media', 'hero-study.jpg'));
-  assert.ok(distHero.size > 50_000, 'dist hero image should exist');
-
-  const distPdf = await stat(path.join(repoRoot, 'dist', 'Higher-Maths-Exam-Formulae-List.pdf'));
-  assert.ok(distPdf.size > 50_000, 'dist datasheet PDF should exist');
+  await assertMissing('home.css');
+  await assertMissing('home.js');
+  await assertMissing('app.js');
+  await assertMissing('styles.css');
+  await assertMissing('auth-client.js');
+  await assertMissing('data/papers.json');
+  await assertMissing('media/hero-study.jpg');
+  await assertMissing('media/winter-panorama-bled.jpg');
+  await assertMissing('ruae/index.html');
+  await assertMissing('maths/index.html');
+  await assertMissing('login/index.html');
+  await assertMissing('admin/index.html');
 });

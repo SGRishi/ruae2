@@ -1,4 +1,4 @@
-import { cp, mkdir, writeFile } from 'node:fs/promises';
+import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -34,18 +34,9 @@ function resolveApiBase() {
 }
 
 async function run() {
+  await rm(distDir, { recursive: true, force: true });
   await mkdir(distDir, { recursive: true });
   await cp(publicDir, distDir, { recursive: true });
-
-  // Extra static assets served from the site root (Pages). Keep this list small.
-  const extraFiles = ['Higher-Maths-Exam-Formulae-List.pdf'];
-  for (const filename of extraFiles) {
-    try {
-      await cp(path.join(rootDir, filename), path.join(distDir, filename));
-    } catch {
-      // Optional file; ignore if missing in dev forks.
-    }
-  }
 
   const apiBase = resolveApiBase();
   // Only set API_BASE when explicitly configured. When omitted, the auth client

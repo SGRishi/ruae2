@@ -1,4 +1,4 @@
-import papersData from './public/data/papers.json' with { type: 'json' };
+import papersData from './api/papers.json' with { type: 'json' };
 
 const encoder = new TextEncoder();
 const SESSION_COOKIE_NAME = 'ruae_session';
@@ -4501,7 +4501,7 @@ export function createApiHandler(options = {}) {
           if (request.method !== 'GET') return methodNotAllowed(request, env, ['GET']);
           return jsonResponse(request, env, {
             ok: true,
-            service: 'ruae-api',
+            service: 'countdown-api',
             timestamp: new Date(now()).toISOString(),
           });
         }
@@ -4522,111 +4522,24 @@ export function createApiHandler(options = {}) {
           return handleResolveEventDate(request, env, now());
         }
 
-        if (!env.SESSION_SECRET) {
-          return jsonResponse(request, env, { ok: false, error: 'Server auth is not configured.' }, 500);
-        }
-
-        const store = env.AUTH_STORE || (env.DB ? createD1Store(env.DB) : null);
-        if (!store) {
-          return jsonResponse(request, env, { ok: false, error: 'Database binding is not configured.' }, 500);
-        }
-
-        const mathsStore = env.MATHS_STORE || (env.DB ? createMathsD1Store(env.DB) : null);
         const countdownStore = env.COUNTDOWN_STORE || (env.DB ? createCountdownD1Store(env.DB) : null);
 
         const nowMs = now();
         const nowSeconds = Math.floor(nowMs / 1000);
-
-        if (path === '/api/admin/review') {
-          return handleAdminReview(request, env, store, url, nowSeconds);
-        }
-
-        if (path === '/api/admin/approve') {
-          return handleAdminApprove(request, env, store, url, nowSeconds);
-        }
-
-        if (path === '/api/admin/deny') {
-          return handleAdminDeny(request, env, store, url, nowSeconds);
-        }
-
-        if (path === '/api/admin/pending/deny-all') {
-          return handleAdminDenyAllPending(request, env, store, url, nowSeconds);
-        }
-
-        if (path === '/api/admin/denied/clear') {
-          return handleAdminClearDenied(request, env, store, url, nowSeconds);
-        }
-
-        if (path === '/api/auth/me') {
-          return handleAuthMe(request, env, store, url, nowSeconds);
-        }
-
-        if (path === '/api/auth/register') {
-          return handleAuthRegister(request, env, store, url, nowSeconds);
-        }
-
-        if (path === '/api/auth/login') {
-          return handleAuthLogin(request, env, store, url, nowSeconds);
-        }
-
-        if (path === '/api/auth/logout') {
-          return handleAuthLogout(request, env, store, url, nowSeconds);
-        }
-
-        if (path === '/api/protected/example') {
-          return handleProtectedExample(request, env, store, url, nowSeconds);
-        }
-
-        const cropId = parseMathsCropIdFromPath(path);
-        if (cropId) {
-          return handleMathsCropPng(request, env, store, mathsStore, cropId, nowSeconds);
-        }
-
-        if (path === '/api/maths/years') {
-          return handleMathsYears(request, env, store, mathsStore, nowSeconds);
-        }
-
-        if (path === '/api/maths/files') {
-          return handleMathsFiles(request, env, store, mathsStore, url, nowSeconds);
-        }
-
-        if (path === '/api/maths/file') {
-          return handleMathsFile(request, env, store, mathsStore, url, nowSeconds);
-        }
-
-        if (path === '/api/maths/questions') {
-          return handleMathsQuestions(request, env, store, mathsStore, url, nowSeconds);
-        }
-
-        if (path === '/api/maths/question') {
-          return handleMathsQuestion(request, env, store, mathsStore, url, nowSeconds);
-        }
-
-        if (path === '/api/maths/datasheet') {
-          return handleMathsDatasheet(request, env, store, mathsStore, url, nowSeconds);
-        }
-
-        if (path === '/api/maths/diagnostics') {
-          return handleMathsDiagnostics(request, env, store, mathsStore, nowSeconds);
-        }
-
-        if (path === '/api/maths/review/save') {
-          return handleMathsReviewSave(request, env, store, mathsStore, url, nowSeconds);
-        }
-
-        if (path === '/api/maths/blob') {
-          return handleMathsBlob(request, env, store, url, nowSeconds);
-        }
-
-        if (path === '/api/match') {
-          return handleMatch(request, env, store, url, nowSeconds);
-        }
 
         if (path === '/api/countdown/timer') {
           return handleCountdownTimer(request, env, countdownStore, url, nowMs, nowSeconds);
         }
 
         if (path === '/api/countdown/access') {
+          if (!env.SESSION_SECRET) {
+            return jsonResponse(
+              request,
+              env,
+              { ok: false, error: 'Countdown access signing is not configured.' },
+              500
+            );
+          }
           return handleCountdownAccess(request, env, countdownStore, url, nowMs, nowSeconds);
         }
 

@@ -13,7 +13,7 @@ test.describe('openai date resolver', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          query: 'SQA Higher maths exam day',
+          query: 'London marathon start date',
           title: 'SQA Higher Mathematics',
           datetime_iso: '2026-05-05T08:00:00.000Z',
           timezone: 'Europe/London',
@@ -28,7 +28,7 @@ test.describe('openai date resolver', () => {
 
     await page.goto('/countdown', { waitUntil: 'domcontentloaded' });
 
-    await page.getByTestId('resolve-query').fill('SQA Higher maths exam day');
+    await page.getByTestId('resolve-query').fill('London marathon start date');
     await page.getByTestId('resolve-button').click();
 
     await expect(page.getByTestId('deadline-date')).toHaveValue('05/05/2026');

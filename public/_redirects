@@ -1,8 +1,3 @@
-/ruae /ruae/ 301
-/login /login/ 301
-/admin /admin/ 301
-/maths /maths/ 301
 /countdown /countdown/ 301
-/maths/* /maths/index.html 200
 /countdown/* /countdown/index.html 200
 /api/* https://api.rishisubjects.co.uk/api/:splat 200

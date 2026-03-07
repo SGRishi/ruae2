@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 test('live smoke: countdown page loads in read-only mode', async ({ page }) => {
-  const smokePath = process.env.SMOKE_PATH || '/countdown';
+  const smokePath = process.env.SMOKE_PATH || '/';
 
   await page.goto(smokePath, { waitUntil: 'domcontentloaded' });
   const embedHeadersResponse = await page.request.get('/countdown/?embed=1');

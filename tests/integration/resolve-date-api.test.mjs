@@ -37,13 +37,13 @@ test('resolve-date API uses Responses web_search and returns explicit source URL
 
     return jsonResponse({
       output_text: JSON.stringify({
-        title: 'SQA Higher Mathematics exam',
+        title: 'London Marathon start time',
         datetime_iso: '2026-05-05T08:00:00.000Z',
         timezone: 'Europe/London',
-        source_url: 'https://www.sqa.org.uk/sqa/107652.html',
-        source_title: 'SQA - Exam Timetable',
+        source_url: 'https://www.tcslondonmarathon.com',
+        source_title: 'TCS London Marathon',
         confidence: 'high',
-        note: 'Resolved from official SQA timetable.',
+        note: 'Resolved from official event schedule.',
       }),
     });
   };
@@ -53,7 +53,7 @@ test('resolve-date API uses Responses web_search and returns explicit source URL
 
   const response = await handler.fetch(
     createApiRequest(
-      '/api/resolve-date?q=SQA%20Higher%20maths%20exam%20day&timezone=Europe/London'
+      '/api/resolve-date?q=London%20marathon%20start%20date&timezone=Europe/London'
     ),
     {
       OPENAI_API_KEY: 'test-openai-key',
@@ -63,12 +63,12 @@ test('resolve-date API uses Responses web_search and returns explicit source URL
   const data = await response.json();
 
   assert.equal(response.status, 200);
-  assert.equal(data.query, 'SQA Higher maths exam day');
-  assert.equal(data.title, 'SQA Higher Mathematics exam');
+  assert.equal(data.query, 'London marathon start date');
+  assert.equal(data.title, 'London Marathon start time');
   assert.equal(data.datetime_iso, '2026-05-05T08:00:00.000Z');
   assert.equal(data.timezone, 'Europe/London');
-  assert.equal(data.source_url, 'https://www.sqa.org.uk/sqa/107652.html');
-  assert.equal(data.source_title, 'SQA - Exam Timetable');
+  assert.equal(data.source_url, 'https://www.tcslondonmarathon.com/');
+  assert.equal(data.source_title, 'TCS London Marathon');
   assert.equal(data.retrieved_at_utc, '2026-01-01T12:00:00.000Z');
   assert.equal(data.confidence, 'high');
   assert.equal(openAiCalls, 1);

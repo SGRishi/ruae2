@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createApiHandler } from '../worker.js';
-import { createQaEnv } from './fixtures/maths-env.mjs';
+import { createCountdownQaEnv } from './fixtures/countdown-env.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,7 +14,7 @@ const distDir = path.join(repoRoot, 'dist');
 const PORT = Number(process.env.PORT || 8789);
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 
-const { env } = await createQaEnv(ORIGIN);
+const { env } = createCountdownQaEnv(ORIGIN);
 const apiHandler = createApiHandler();
 
 const realFetch = globalThis.fetch;
@@ -143,16 +143,6 @@ async function serveStatic(req, res, pathname) {
     if (cleanPath.endsWith('/')) {
       tryFiles.push(path.join(distDir, target, 'index.html'));
     }
-  }
-
-  // SPA rewrite for /maths/*.
-  if (cleanPath === '/maths' || cleanPath === '/maths/' || cleanPath.startsWith('/maths/')) {
-    tryFiles.push(path.join(distDir, 'maths', 'index.html'));
-  }
-
-  // Existing /ruae stays a standalone page.
-  if (cleanPath === '/ruae' || cleanPath === '/ruae/' || cleanPath.startsWith('/ruae/')) {
-    tryFiles.push(path.join(distDir, 'ruae', 'index.html'));
   }
 
   // Countdown URLs are tokenized (/countdown/:id), so route all nested paths.
