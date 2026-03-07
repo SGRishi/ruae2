@@ -9,6 +9,17 @@
       content="Create polished countdowns with scenery backdrops, progress tracking, and ambient audio."
     />
     <meta name="robots" content="noindex,nofollow" data-testid="robots-meta" />
+    <script>
+      (function redirectPagesDevHost() {
+        const host = String(window.location.hostname || '').toLowerCase();
+        if (!host.endsWith('.pages.dev')) return;
+
+        const nextUrl = new URL(window.location.href);
+        nextUrl.protocol = 'https:';
+        nextUrl.host = 'rishisubjects.co.uk';
+        window.location.replace(nextUrl.toString());
+      })();
+    </script>
     <link rel="stylesheet" href="/countdown/countdown.css?v=20260305g" />
   </head>
   <body class="countdown-page">

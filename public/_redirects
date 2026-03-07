@@ -1,9 +1,5 @@
-https://www.rishisubjects.co.uk/* https://rishisubjects.co.uk/:splat 301!
-https://rishisubjects.pages.dev/* https://rishisubjects.co.uk/:splat 301!
-https://:subdomain.rishisubjects.pages.dev/* https://rishisubjects.co.uk/:splat 301!
-
 / /index.html 200
-/countdown /countdown/index.html 200
+/countdown /countdown/ 301
 /countdown/* /countdown/index.html 200
 /api/* https://api.rishisubjects.co.uk/api/:splat 200
 /* /404.html 404
